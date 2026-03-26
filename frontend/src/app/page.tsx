@@ -5,28 +5,13 @@ import PhotoUploader from "@/components/PhotoUploader";
 import StyleSelector from "@/components/StyleSelector";
 import EmojiGrid from "@/components/EmojiGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
-
-interface EmojiResult {
-  emotion: string;
-  image_url: string;
-}
-
-interface PetFeatures {
-  animal_type: string;
-  breed: string;
-  fur_color: string;
-  overall_vibe: string;
-}
-
-interface GenerateResponse {
-  pet_features: PetFeatures;
-  emojis: EmojiResult[];
-}
+import type { GenerateResponse, EmojiStyle } from "@/types/api";
+import { generateEmojis } from "@/lib/api";
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [style, setStyle] = useState<"2d" | "3d">("2d");
+  const [style, setStyle] = useState<EmojiStyle>("2d");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,21 +30,7 @@ export default function Home() {
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("style", style);
-      formData.append("emoji_count", "8");
-
-      const res = await fetch("http://localhost:8000/api/generate", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        throw new Error(`서버 오류: ${res.status}`);
-      }
-
-      const data: GenerateResponse = await res.json();
+      const data = await generateEmojis(file, style);
       setResult(data);
     } catch (err) {
       setError(

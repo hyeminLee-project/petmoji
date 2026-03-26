@@ -1,6 +1,8 @@
+import type { EmojiStyle } from "@/types/api";
+
 interface Props {
-  style: "2d" | "3d";
-  onStyleChange: (style: "2d" | "3d") => void;
+  style: EmojiStyle;
+  onStyleChange: (style: EmojiStyle) => void;
 }
 
 export default function StyleSelector({ style, onStyleChange }: Props) {

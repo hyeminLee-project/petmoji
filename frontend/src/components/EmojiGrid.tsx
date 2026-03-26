@@ -1,7 +1,4 @@
-interface EmojiResult {
-  emotion: string;
-  image_url: string;
-}
+import type { EmojiResult } from "@/types/api";
 
 const EMOTION_LABELS: Record<string, string> = {
   happy: "행복 😊",
