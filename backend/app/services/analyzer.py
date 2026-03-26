@@ -1,8 +1,13 @@
+import logging
+import re
+
 import anthropic
 import base64
 import json
 
 from app.models.schemas import PetFeatures
+
+logger = logging.getLogger(__name__)
 
 
 async def analyze_pet_photo(image_bytes: bytes, content_type: str) -> PetFeatures:
@@ -54,9 +59,26 @@ Return ONLY the JSON, no other text.""",
     )
 
     response_text = message.content[0].text
-    # Clean up response if wrapped in code blocks
+
+    # Clean up response: strip code blocks, find JSON object
+    response_text = response_text.strip()
     if response_text.startswith("```"):
         response_text = response_text.split("\n", 1)[1].rsplit("```", 1)[0]
 
-    features_dict = json.loads(response_text)
-    return PetFeatures(**features_dict)
+    # Try to extract JSON from response even if extra text is present
+    json_match = re.search(r"\{[\s\S]*\}", response_text)
+    if not json_match:
+        logger.error("No JSON found in Claude response: %s", response_text[:200])
+        raise ValueError("Claude 응답에서 JSON을 찾을 수 없습니다")
+
+    try:
+        features_dict = json.loads(json_match.group())
+    except json.JSONDecodeError as e:
+        logger.error("JSON parse error: %s | Response: %s", e, response_text[:200])
+        raise ValueError(f"Claude 응답 JSON 파싱 실패: {e}") from e
+
+    try:
+        return PetFeatures(**features_dict)
+    except Exception as e:
+        logger.error("PetFeatures validation error: %s | Data: %s", e, features_dict)
+        raise ValueError(f"특징 데이터 검증 실패: {e}") from e
