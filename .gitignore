@@ -1,18 +1,21 @@
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
 .venv/
 .env
+.pytest_cache/
+htmlcov/
 
 # Node
 node_modules/
 .next/
 out/
 
-# IDE
+# IDE (개인 설정만 제외, .vscode/는 프로젝트 설정으로 공유)
 .idea/
-.vscode/
 *.swp
+*.swo
 
 # Claude Code
 .claude/
@@ -20,3 +23,10 @@ out/
 # OS
 .DS_Store
 Thumbs.db
+
+# Environment
+.env.local
+frontend/.env.local
+
+# Output
+output/
