@@ -19,11 +19,20 @@ async def generate_emojis(
     file: UploadFile = File(...),
     style: str = Form("2d"),
     emoji_count: int = Form(8),
+    provider: str = Form("gemini"),
+    analyzer: str = Form("gemini"),
+    custom_prompt: str = Form(""),
 ):
     """Upload a pet photo and generate a personalized emoji set."""
     # 입력 검증
     if style not in ("2d", "3d"):
         raise HTTPException(status_code=400, detail="style은 '2d' 또는 '3d'만 가능합니다")
+
+    if provider not in ("openai", "gemini"):
+        raise HTTPException(status_code=400, detail="provider는 'openai' 또는 'gemini'만 가능합니다")
+
+    if analyzer not in ("anthropic", "gemini"):
+        raise HTTPException(status_code=400, detail="analyzer는 'anthropic' 또는 'gemini'만 가능합니다")
 
     if not 1 <= emoji_count <= 16:
         raise HTTPException(status_code=400, detail="emoji_count는 1~16 사이여야 합니다")
@@ -40,8 +49,8 @@ async def generate_emojis(
         raise HTTPException(status_code=400, detail="빈 파일입니다")
 
     try:
-        # Step 1: Analyze pet features with Claude Vision
-        pet_features = await analyze_pet_photo(image_bytes, content_type)
+        # Step 1: Analyze pet features
+        pet_features = await analyze_pet_photo(image_bytes, content_type, analyzer)
     except ValueError as e:
         logger.error("Pet analysis failed: %s", e)
         raise HTTPException(status_code=422, detail=f"사진 분석 실패: {e}") from e
@@ -51,7 +60,7 @@ async def generate_emojis(
 
     try:
         # Step 2: Generate emoji set with GPT-4o
-        emojis = await generate_emoji_set(pet_features, style, emoji_count)
+        emojis = await generate_emoji_set(pet_features, style, emoji_count, provider, custom_prompt)
     except Exception as e:
         logger.error("Emoji generation failed: %s", e)
         raise HTTPException(status_code=500, detail="이모지 생성 중 오류가 발생했습니다") from e
