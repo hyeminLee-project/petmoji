@@ -1,0 +1,18 @@
+{
+  "recommendations": [
+    // Python
+    "ms-python.python",
+    "charliermarsh.ruff",
+
+    // JavaScript / TypeScript
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+
+    // Tailwind CSS
+    "bradlc.vscode-tailwindcss",
+
+    // 기타
+    "ms-python.debugpy",
+    "eamodio.gitlens"
+  ]
+}

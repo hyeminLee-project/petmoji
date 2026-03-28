@@ -5,13 +5,18 @@ import PhotoUploader from "@/components/PhotoUploader";
 import StyleSelector from "@/components/StyleSelector";
 import EmojiGrid from "@/components/EmojiGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import type { GenerateResponse, EmojiStyle } from "@/types/api";
+import FormatSelector from "@/components/FormatSelector";
+import ProviderSelector from "@/components/ProviderSelector";
+import CustomPrompt from "@/components/CustomPrompt";
+import type { GenerateResponse, EmojiStyle, ImageProvider } from "@/types/api";
 import { generateEmojis } from "@/lib/api";
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [style, setStyle] = useState<EmojiStyle>("2d");
+  const [provider, setProvider] = useState<ImageProvider>("openai");
+  const [customPrompt, setCustomPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +35,7 @@ export default function Home() {
     setError(null);
 
     try {
-      const data = await generateEmojis(file, style);
+      const data = await generateEmojis(file, style, 8, provider, customPrompt);
       setResult(data);
     } catch (err) {
       setError(
@@ -63,6 +68,8 @@ export default function Home() {
         {file && (
           <div className="mt-6 space-y-6">
             <StyleSelector style={style} onStyleChange={setStyle} />
+            <ProviderSelector provider={provider} onProviderChange={setProvider} />
+            <CustomPrompt value={customPrompt} onChange={setCustomPrompt} />
 
             <button
               onClick={handleGenerate}
@@ -97,6 +104,7 @@ export default function Home() {
             </p>
           </div>
           <EmojiGrid emojis={result.emojis} />
+          <FormatSelector emojis={result.emojis} />
         </div>
       )}
     </main>
