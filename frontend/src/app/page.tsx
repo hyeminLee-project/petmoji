@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import PhotoUploader from "@/components/PhotoUploader";
 import StyleSelector from "@/components/StyleSelector";
 import EmojiGrid from "@/components/EmojiGrid";
@@ -8,8 +8,8 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import FormatSelector from "@/components/FormatSelector";
 import ProviderSelector from "@/components/ProviderSelector";
 import CustomPrompt from "@/components/CustomPrompt";
-import type { GenerateResponse, EmojiStyle, ImageProvider } from "@/types/api";
-import { generateEmojis } from "@/lib/api";
+import type { GenerateResponse, EmojiStyle, ImageProvider, EmojiResult } from "@/types/api";
+import { generateEmojisStream, type ProgressEvent } from "@/lib/sse";
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -21,6 +21,11 @@ export default function Home() {
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // SSE 상태
+  const [progress, setProgress] = useState<ProgressEvent | null>(null);
+  const [partialEmojis, setPartialEmojis] = useState<EmojiResult[]>([]);
+  const abortRef = useRef<AbortController | null>(null);
+
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
     setPreview(URL.createObjectURL(selectedFile));
@@ -28,22 +33,50 @@ export default function Home() {
     setError(null);
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     if (!file) return;
 
     setLoading(true);
     setError(null);
+    setResult(null);
+    setProgress(null);
+    setPartialEmojis([]);
 
-    try {
-      const data = await generateEmojis(file, style, 8, provider, customPrompt);
-      setResult(data);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "이모지 생성에 실패했습니다"
-      );
-    } finally {
-      setLoading(false);
-    }
+    abortRef.current = generateEmojisStream(
+      file,
+      style,
+      8,
+      provider,
+      customPrompt,
+      {
+        onProgress: (event) => {
+          setProgress(event);
+        },
+        onEmoji: (event) => {
+          setPartialEmojis((prev) => [
+            ...prev,
+            { emotion: event.emotion, image_url: event.image_url },
+          ]);
+        },
+        onComplete: (data) => {
+          setResult(data as GenerateResponse);
+          setLoading(false);
+          setProgress(null);
+        },
+        onError: (err) => {
+          setError(err.message);
+          setLoading(false);
+          setProgress(null);
+        },
+      }
+    );
+  };
+
+  const handleCancel = () => {
+    abortRef.current?.abort();
+    setLoading(false);
+    setProgress(null);
+    setPartialEmojis([]);
   };
 
   return (
@@ -71,19 +104,36 @@ export default function Home() {
             <ProviderSelector provider={provider} onProviderChange={setProvider} />
             <CustomPrompt value={customPrompt} onChange={setCustomPrompt} />
 
-            <button
-              onClick={handleGenerate}
-              disabled={loading}
-              className="w-full py-4 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white text-lg font-semibold rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
-            >
-              {loading ? "생성 중..." : "✨ 이모지 세트 만들기"}
-            </button>
+            {loading ? (
+              <button
+                onClick={handleCancel}
+                className="w-full py-4 bg-red-400 hover:bg-red-500 text-white text-lg font-semibold rounded-xl transition-colors cursor-pointer"
+              >
+                ✕ 생성 취소
+              </button>
+            ) : (
+              <button
+                onClick={handleGenerate}
+                className="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white text-lg font-semibold rounded-xl transition-colors cursor-pointer"
+              >
+                ✨ 이모지 세트 만들기
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      {/* Loading */}
-      {loading && <LoadingSpinner />}
+      {/* Loading with progress */}
+      {loading && (
+        <LoadingSpinner
+          step={progress?.step}
+          message={progress?.message}
+          progress={progress?.progress}
+          currentEmoji={progress?.current}
+          totalEmojis={progress?.total}
+          partialEmojis={partialEmojis}
+        />
+      )}
 
       {/* Error */}
       {error && (
