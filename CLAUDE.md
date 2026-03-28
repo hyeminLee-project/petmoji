@@ -7,13 +7,19 @@
 ### 형식
 
 ```
-<gitmoji> <type>: <한줄 설명>
+<gitmoji> <type>: <한줄 설명> (영문, 50자 이내)
 
-- 변경 내용 1
+- 변경 내용 1 (한글 OK)
 - 변경 내용 2
-
-Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 ```
+
+### 규칙
+
+- 제목은 영문, 본문은 한글/영문 자유
+- 제목에 마침표(.) 쓰지 않기
+- 본문은 불렛(-) 리스트로 작성
+- 하나의 커밋에는 하나의 기능/수정만
+- Co-Authored-By는 선택 (생략 가능)
 
 ### Type
 
@@ -78,3 +84,50 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 - `feature/*` — 기능 개발
 - `fix/*` — 버그 수정
 - `chore/*` — 설정/문서 등
+
+## PR Convention
+
+### 제목
+
+```
+<gitmoji> <type>: <한줄 설명>
+```
+
+커밋 컨벤션과 동일. 예: `✨ feat: Add multi-format emoji converter`
+
+### 본문
+
+```markdown
+## Summary
+- 변경 사항 요약 (2~5줄)
+
+## Changes
+- [ ] 변경 파일/기능 체크리스트
+
+## Test
+- [ ] 테스트 통과 여부
+- [ ] 수동 테스트 결과
+
+## Screenshots
+(UI 변경 시 스크린샷 첨부)
+```
+
+### PR 규칙
+
+- 하나의 PR에는 하나의 기능/이슈
+- `main`으로 직접 push 금지, 반드시 PR을 통해 머지
+- CI(lint + build + test) 통과 필수
+- PR 제목만으로 무슨 변경인지 알 수 있어야 함
+- Draft PR: 작업 중일 때 `gh pr create --draft`
+
+### 머지 전략
+
+- **Squash and Merge** 사용 (커밋 히스토리 깔끔하게)
+- 머지 후 feature 브랜치 삭제
+
+## 보안
+
+- `.env` 파일은 절대 커밋하지 않음 (`.gitignore`에 등록됨)
+- API 키는 환경변수로만 관리
+- 에러 메시지에 내부 정보 노출 금지
+- 배포 시 HTTPS 필수
