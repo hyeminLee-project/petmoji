@@ -26,6 +26,19 @@ class EmojiResult(BaseModel):
     image_url: str  # base64 data URL or file URL
 
 
+class ConvertedEmoji(BaseModel):
+    emotion: str
+    image_url: str
+    format: str  # kakao, imessage, sticker, gif, wallpaper
+    width: int
+    height: int
+
+
 class GenerateResponse(BaseModel):
     pet_features: PetFeatures
     emojis: list[EmojiResult]
+
+
+class ConvertResponse(BaseModel):
+    format: str
+    emojis: list[ConvertedEmoji]
