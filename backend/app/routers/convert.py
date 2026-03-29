@@ -23,7 +23,25 @@ async def list_formats():
     """List available conversion formats."""
     return {
         "formats": [
-            {"id": "kakao", "name": "카카오톡 이모티콘", "size": "360x360"},
+            {"id": "kakao", "name": "카카오톡 이모티콘", "size": "360x360", "limit": "150KB"},
+            {
+                "id": "kakao_large_square",
+                "name": "카카오 큰이모티콘 (정사각)",
+                "size": "540x540",
+                "limit": "1MB",
+            },
+            {
+                "id": "kakao_large_wide",
+                "name": "카카오 큰이모티콘 (가로)",
+                "size": "540x300",
+                "limit": "1MB",
+            },
+            {
+                "id": "kakao_large_tall",
+                "name": "카카오 큰이모티콘 (세로)",
+                "size": "300x540",
+                "limit": "1MB",
+            },
             {"id": "imessage", "name": "iMessage 스티커", "size": "408x408"},
             {"id": "sticker", "name": "투명 스티커 PNG", "size": "512x512"},
             {"id": "gif", "name": "움직이는 GIF", "size": "256x256"},

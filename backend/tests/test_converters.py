@@ -18,12 +18,33 @@ class TestKakaoConverter:
         result = convert_kakao(sample_emojis)
         assert len(result) == 2
 
-    def test_dimensions(self, sample_emojis: list[EmojiResult]):
+    def test_standard_dimensions(self, sample_emojis: list[EmojiResult]):
         result = convert_kakao(sample_emojis)
         for emoji in result:
-            assert emoji.format == "kakao"
+            assert emoji.format == "kakao_standard"
             assert emoji.width == 360
             assert emoji.height == 360
+
+    def test_large_square(self, sample_emojis: list[EmojiResult]):
+        result = convert_kakao(sample_emojis, variant="large_square")
+        for emoji in result:
+            assert emoji.format == "kakao_large_square"
+            assert emoji.width == 540
+            assert emoji.height == 540
+
+    def test_large_wide(self, sample_emojis: list[EmojiResult]):
+        result = convert_kakao(sample_emojis, variant="large_wide")
+        for emoji in result:
+            assert emoji.format == "kakao_large_wide"
+            assert emoji.width == 540
+            assert emoji.height == 300
+
+    def test_large_tall(self, sample_emojis: list[EmojiResult]):
+        result = convert_kakao(sample_emojis, variant="large_tall")
+        for emoji in result:
+            assert emoji.format == "kakao_large_tall"
+            assert emoji.width == 300
+            assert emoji.height == 540
 
     def test_output_is_png(self, sample_emojis: list[EmojiResult]):
         result = convert_kakao(sample_emojis)
