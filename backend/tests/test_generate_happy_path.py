@@ -1,11 +1,11 @@
 """생성 API happy path 테스트 (AI API mock)"""
+
 import io
 from unittest.mock import AsyncMock, patch
 
 from httpx import AsyncClient
 
 from app.models.schemas import EmojiResult, PetFeatures
-
 
 MOCK_FEATURES = PetFeatures(
     animal_type="dog",
@@ -30,10 +30,17 @@ async def test_generate_success(client: AsyncClient, sample_image_b64: str, fake
     ]
 
     with (
-        patch("app.routers.emoji.analyze_pet_photo", new_callable=AsyncMock, return_value=MOCK_FEATURES),
-        patch("app.routers.emoji.generate_emoji_set", new_callable=AsyncMock, return_value=mock_emojis),
+        patch(
+            "app.routers.emoji.analyze_pet_photo",
+            new_callable=AsyncMock,
+            return_value=MOCK_FEATURES,
+        ),
+        patch(
+            "app.routers.emoji.generate_emoji_set", new_callable=AsyncMock, return_value=mock_emojis
+        ),
     ):
-        res = await client.post("/api/generate",
+        res = await client.post(
+            "/api/generate",
             files={"file": ("test.jpg", fake_jpeg, "image/jpeg")},
             data={"style": "2d", "emoji_count": "1", "provider": "gemini", "analyzer": "gemini"},
         )

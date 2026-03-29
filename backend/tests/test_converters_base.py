@@ -1,11 +1,12 @@
 """converters/base.py 유닛 테스트"""
+
 import base64
 import io
 
 import pytest
 from PIL import Image
 
-from app.converters.base import decode_image, encode_image, encode_gif
+from app.converters.base import decode_image, encode_gif, encode_image
 
 
 class TestDecodeImage:

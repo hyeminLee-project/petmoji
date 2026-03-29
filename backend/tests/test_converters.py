@@ -1,13 +1,14 @@
 """5개 converter 유닛 테스트"""
+
 import base64
 import io
 
 from PIL import Image
 
-from app.converters.kakao import convert_kakao
-from app.converters.imessage import convert_imessage
-from app.converters.sticker import convert_sticker
 from app.converters.gif import convert_gif
+from app.converters.imessage import convert_imessage
+from app.converters.kakao import convert_kakao
+from app.converters.sticker import convert_sticker
 from app.converters.wallpaper import convert_wallpaper
 from app.models.schemas import EmojiResult
 

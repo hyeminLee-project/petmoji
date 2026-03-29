@@ -6,7 +6,7 @@
 
 from PIL import Image
 
-from app.converters.base import decode_image, encode_gif, encode_image
+from app.converters.base import decode_image, encode_gif
 from app.models.schemas import ConvertedEmoji, EmojiResult
 
 GIF_SIZE = (256, 256)
@@ -50,12 +50,14 @@ def convert_gif(emojis: list[EmojiResult]) -> list[ConvertedEmoji]:
         frames = _create_bounce_frames(img)
         gif_url = encode_gif(frames, duration=FRAME_DURATION)
 
-        results.append(ConvertedEmoji(
-            emotion=emoji.emotion,
-            image_url=gif_url,
-            format="gif",
-            width=GIF_SIZE[0],
-            height=GIF_SIZE[1],
-        ))
+        results.append(
+            ConvertedEmoji(
+                emotion=emoji.emotion,
+                image_url=gif_url,
+                format="gif",
+                width=GIF_SIZE[0],
+                height=GIF_SIZE[1],
+            )
+        )
 
     return results

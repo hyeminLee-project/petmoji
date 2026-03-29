@@ -57,10 +57,12 @@ def convert_wallpaper(emojis: list[EmojiResult]) -> list[ConvertedEmoji]:
             wallpaper.paste(tile_img, (paste_x, paste_y), tile_img)
             tile_index += 1
 
-    return [ConvertedEmoji(
-        emotion="wallpaper",
-        image_url=encode_image(wallpaper),
-        format="wallpaper",
-        width=WALLPAPER_SIZE[0],
-        height=WALLPAPER_SIZE[1],
-    )]
+    return [
+        ConvertedEmoji(
+            emotion="wallpaper",
+            image_url=encode_image(wallpaper),
+            format="wallpaper",
+            width=WALLPAPER_SIZE[0],
+            height=WALLPAPER_SIZE[1],
+        )
+    ]

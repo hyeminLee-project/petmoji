@@ -1,4 +1,5 @@
 """공유 테스트 fixtures"""
+
 import base64
 import io
 

@@ -1,4 +1,5 @@
 """PetMoji API 기본 테스트"""
+
 import io
 
 from httpx import AsyncClient

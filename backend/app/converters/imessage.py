@@ -30,12 +30,14 @@ def convert_imessage(emojis: list[EmojiResult]) -> list[ConvertedEmoji]:
         )
         canvas.paste(img, offset, img)
 
-        results.append(ConvertedEmoji(
-            emotion=emoji.emotion,
-            image_url=encode_image(canvas),
-            format="imessage",
-            width=IMESSAGE_SIZE[0],
-            height=IMESSAGE_SIZE[1],
-        ))
+        results.append(
+            ConvertedEmoji(
+                emotion=emoji.emotion,
+                image_url=encode_image(canvas),
+                format="imessage",
+                width=IMESSAGE_SIZE[0],
+                height=IMESSAGE_SIZE[1],
+            )
+        )
 
     return results
