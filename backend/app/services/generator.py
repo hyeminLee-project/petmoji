@@ -27,7 +27,7 @@ def _build_character_prompt(features: PetFeatures, style: str, custom_prompt: st
 
     base = f"""A cute character based on a {features.animal_type} ({features.breed}).
 Physical traits: {features.fur_color} {features.fur_pattern} fur, {features.ear_shape} ears, {features.eye_shape} {features.eye_color} eyes, {features.nose_shape} nose, {features.body_shape} body.
-Distinctive features: {', '.join(features.distinctive_features)}.
+Distinctive features: {", ".join(features.distinctive_features)}.
 Style: {style_desc}.
 The character should be chibi-proportioned (big head, small body), centered on a white background, emoji-sized square composition."""
 

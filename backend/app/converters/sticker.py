@@ -72,12 +72,14 @@ def convert_sticker(emojis: list[EmojiResult]) -> list[ConvertedEmoji]:
         # Add sticker border
         canvas = _add_sticker_border(canvas)
 
-        results.append(ConvertedEmoji(
-            emotion=emoji.emotion,
-            image_url=encode_image(canvas),
-            format="sticker",
-            width=STICKER_SIZE[0],
-            height=STICKER_SIZE[1],
-        ))
+        results.append(
+            ConvertedEmoji(
+                emotion=emoji.emotion,
+                image_url=encode_image(canvas),
+                format="sticker",
+                width=STICKER_SIZE[0],
+                height=STICKER_SIZE[1],
+            )
+        )
 
     return results

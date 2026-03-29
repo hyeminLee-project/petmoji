@@ -33,12 +33,14 @@ def convert_kakao(emojis: list[EmojiResult]) -> list[ConvertedEmoji]:
         )
         canvas.paste(main_img, offset, main_img)
 
-        results.append(ConvertedEmoji(
-            emotion=emoji.emotion,
-            image_url=encode_image(canvas),
-            format="kakao",
-            width=KAKAO_MAIN_SIZE[0],
-            height=KAKAO_MAIN_SIZE[1],
-        ))
+        results.append(
+            ConvertedEmoji(
+                emotion=emoji.emotion,
+                image_url=encode_image(canvas),
+                format="kakao",
+                width=KAKAO_MAIN_SIZE[0],
+                height=KAKAO_MAIN_SIZE[1],
+            )
+        )
 
     return results

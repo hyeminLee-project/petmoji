@@ -35,16 +35,22 @@ async def generate_emojis(
         raise HTTPException(status_code=400, detail="style은 '2d' 또는 '3d'만 가능합니다")
 
     if provider not in ("openai", "gemini"):
-        raise HTTPException(status_code=400, detail="provider는 'openai' 또는 'gemini'만 가능합니다")
+        raise HTTPException(
+            status_code=400, detail="provider는 'openai' 또는 'gemini'만 가능합니다"
+        )
 
     if analyzer not in ("anthropic", "gemini"):
-        raise HTTPException(status_code=400, detail="analyzer는 'anthropic' 또는 'gemini'만 가능합니다")
+        raise HTTPException(
+            status_code=400, detail="analyzer는 'anthropic' 또는 'gemini'만 가능합니다"
+        )
 
     if not 1 <= emoji_count <= 16:
         raise HTTPException(status_code=400, detail="emoji_count는 1~16 사이여야 합니다")
 
     if len(custom_prompt) > MAX_PROMPT_LENGTH:
-        raise HTTPException(status_code=400, detail=f"프롬프트는 {MAX_PROMPT_LENGTH}자 이하여야 합니다")
+        raise HTTPException(
+            status_code=400, detail=f"프롬프트는 {MAX_PROMPT_LENGTH}자 이하여야 합니다"
+        )
 
     # 파일명 sanitize
     content_type = file.content_type or "image/jpeg"
@@ -64,15 +70,15 @@ async def generate_emojis(
     except ValueError as e:
         logger.error("Pet analysis failed: %s", e)
         raise HTTPException(status_code=422, detail="사진 분석에 실패했습니다") from e
-    except Exception:
+    except Exception as e:
         logger.exception("Unexpected analysis error")
-        raise HTTPException(status_code=500, detail="사진 분석 중 오류가 발생했습니다")
+        raise HTTPException(status_code=500, detail="사진 분석 중 오류가 발생했습니다") from e
 
     try:
         # Step 2: Generate emoji set with GPT-4o
         emojis = await generate_emoji_set(pet_features, style, emoji_count, provider, custom_prompt)
-    except Exception:
+    except Exception as e:
         logger.exception("Emoji generation failed")
-        raise HTTPException(status_code=500, detail="이모지 생성 중 오류가 발생했습니다")
+        raise HTTPException(status_code=500, detail="이모지 생성 중 오류가 발생했습니다") from e
 
     return GenerateResponse(pet_features=pet_features, emojis=emojis)
