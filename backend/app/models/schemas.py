@@ -42,3 +42,33 @@ class GenerateResponse(BaseModel):
 class ConvertResponse(BaseModel):
     format: str
     emojis: list[ConvertedEmoji]
+
+
+# ─── Wizard (Phase 1) ─────────────────────────
+
+
+class WizardStartResponse(BaseModel):
+    session_id: str
+    pet_features: PetFeatures
+    tier_config: dict
+
+
+class WizardStepRequest(BaseModel):
+    session_id: str
+    step: str  # style, proportion, detail, reference
+    selection: dict  # step별 선택값
+
+
+class WizardBackRequest(BaseModel):
+    session_id: str
+    target_step: str
+
+
+class WizardBackResponse(BaseModel):
+    current_step: str
+    previews: dict[str, str]  # step -> preview image URL
+
+
+class WizardGenerateRequest(BaseModel):
+    session_id: str
+    emoji_count: int = 8
