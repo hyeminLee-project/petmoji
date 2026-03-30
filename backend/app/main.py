@@ -11,7 +11,7 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from app.routers import convert, emoji, emoji_stream
+from app.routers import convert, emoji, emoji_stream, wizard
 
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="PetMoji API", version="0.1.0")
@@ -39,6 +39,7 @@ app.add_middleware(
 app.include_router(emoji.router, prefix="/api")
 app.include_router(emoji_stream.router, prefix="/api")
 app.include_router(convert.router, prefix="/api")
+app.include_router(wizard.router, prefix="/api")
 
 
 @app.get("/health")
