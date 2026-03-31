@@ -1,5 +1,7 @@
 """확장 프롬프트 빌더 — 5 스타일, 3 비율, 세부 조정, 레퍼런스."""
 
+from app.services.generator import _sanitize_custom_prompt
+
 STYLE_DESCRIPTIONS = {
     "2d": "clean 2D vector art style, flat colors, bold outlines, like Kakao Friends or LINE stickers",
     "3d": "cute 3D rendered style, soft lighting, clay/vinyl figure look, like Pop Mart figurines",
@@ -76,8 +78,9 @@ The character should be centered, emoji-sized square composition."""
     if reference_desc:
         base += f"\nReference: {reference_desc}."
 
-    if custom_prompt:
-        base += f"\nAdditional instructions: {custom_prompt}"
+    sanitized = _sanitize_custom_prompt(custom_prompt)
+    if sanitized:
+        base += f"\nAdditional instructions: {sanitized}"
 
     return base
 

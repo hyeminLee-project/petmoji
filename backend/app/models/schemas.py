@@ -49,6 +49,7 @@ class ConvertResponse(BaseModel):
 
 class WizardStartResponse(BaseModel):
     session_id: str
+    session_token: str
     pet_features: PetFeatures
     tier_config: dict
 

@@ -38,6 +38,7 @@ export async function wizardStart(
 /** 위자드 단계 실행 (SSE) */
 export function wizardStep(
   sessionId: string,
+  sessionToken: string,
   step: WizardStep,
   selection: Record<string, unknown>,
   callbacks: {
@@ -52,7 +53,10 @@ export function wizardStep(
     try {
       const res = await fetch(`${API_BASE}/api/wizard/step`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Session-Token": sessionToken,
+        },
         body: JSON.stringify({ session_id: sessionId, step, selection }),
         signal: controller.signal,
       });
@@ -102,11 +106,15 @@ export function wizardStep(
 /** 뒤로 가기 */
 export async function wizardBack(
   sessionId: string,
+  sessionToken: string,
   targetStep: WizardStep
 ): Promise<{ current_step: string; previews: Record<string, string> }> {
   const res = await fetch(`${API_BASE}/api/wizard/back`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Session-Token": sessionToken,
+    },
     body: JSON.stringify({ session_id: sessionId, target_step: targetStep }),
   });
 
@@ -117,6 +125,7 @@ export async function wizardBack(
 /** 이모지 세트 생성 (SSE) */
 export function wizardGenerate(
   sessionId: string,
+  sessionToken: string,
   emojiCount: number,
   callbacks: {
     onProgress: (data: { step: string; message: string; progress: number }) => void;
@@ -131,7 +140,10 @@ export function wizardGenerate(
     try {
       const res = await fetch(`${API_BASE}/api/wizard/generate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Session-Token": sessionToken,
+        },
         body: JSON.stringify({ session_id: sessionId, emoji_count: emojiCount }),
         signal: controller.signal,
       });

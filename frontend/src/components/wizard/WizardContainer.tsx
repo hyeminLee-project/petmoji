@@ -65,7 +65,7 @@ export default function WizardContainer({ session, provider }: Props) {
             ? { detail }
             : { reference };
 
-    wizardStep(session.session_id, currentStep, selection, {
+    wizardStep(session.session_id, session.session_token, currentStep, selection, {
       onProgress: (data) => setPreviewMessage(data.message),
       onPreview: (data) => {
         setPreviews((prev) => ({ ...prev, [currentStep]: data.image_url }));
@@ -89,7 +89,7 @@ export default function WizardContainer({ session, provider }: Props) {
 
     const targetStep = STEP_ORDER[idx - 1];
     try {
-      const result = await wizardBack(session.session_id, targetStep);
+      const result = await wizardBack(session.session_id, session.session_token, targetStep);
       setCurrentStep(targetStep as WizardStep);
       setPreviews(result.previews);
     } catch {
@@ -104,7 +104,7 @@ export default function WizardContainer({ session, provider }: Props) {
 
     const maxEmotions = (session.tier_config as { max_emotions?: number }).max_emotions || 8;
 
-    wizardGenerate(session.session_id, maxEmotions, {
+    wizardGenerate(session.session_id, session.session_token, maxEmotions, {
       onProgress: (data) => setPreviewMessage(data.message),
       onEmoji: (data) => {
         setPartialEmojis((prev) => [

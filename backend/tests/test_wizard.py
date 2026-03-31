@@ -23,12 +23,21 @@ MOCK_FEATURES = PetFeatures(
 )
 
 
+MOCK_IMAGE_URL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=="
+
+
 async def test_wizard_start_free(client: AsyncClient, fake_jpeg: io.BytesIO):
     """무료 티어 위자드 시작 — 분석 결과 반환"""
-    with patch(
-        "app.graph.nodes.analyze_pet_photo",
-        new_callable=AsyncMock,
-        return_value=MOCK_FEATURES,
+    with (
+        patch(
+            "app.graph.nodes.analyze_pet_photo",
+            new_callable=AsyncMock,
+            return_value=MOCK_FEATURES,
+        ),
+        patch(
+            "app.graph.nodes.PROVIDERS",
+            {"gemini": AsyncMock(return_value=MOCK_IMAGE_URL)},
+        ),
     ):
         res = await client.post(
             "/api/wizard/start",
@@ -39,16 +48,23 @@ async def test_wizard_start_free(client: AsyncClient, fake_jpeg: io.BytesIO):
     assert res.status_code == 200
     data = res.json()
     assert "session_id" in data
+    assert "session_token" in data
     assert data["pet_features"]["breed"] == "Labrador Retriever"
     assert "tier_config" in data
 
 
 async def test_wizard_start_premium(client: AsyncClient, fake_jpeg: io.BytesIO):
     """프리미엄 티어 위자드 시작"""
-    with patch(
-        "app.graph.nodes.analyze_pet_photo",
-        new_callable=AsyncMock,
-        return_value=MOCK_FEATURES,
+    with (
+        patch(
+            "app.graph.nodes.analyze_pet_photo",
+            new_callable=AsyncMock,
+            return_value=MOCK_FEATURES,
+        ),
+        patch(
+            "app.graph.nodes.PROVIDERS",
+            {"gemini": AsyncMock(return_value=MOCK_IMAGE_URL)},
+        ),
     ):
         res = await client.post(
             "/api/wizard/start",
@@ -82,8 +98,8 @@ async def test_wizard_start_invalid_content_type(client: AsyncClient):
     assert res.status_code == 400
 
 
-async def test_wizard_step_no_session(client: AsyncClient):
-    """존재하지 않는 세션으로 step 호출"""
+async def test_wizard_step_no_token(client: AsyncClient):
+    """토큰 없이 step 호출 → 401"""
     res = await client.post(
         "/api/wizard/step",
         json={
@@ -92,22 +108,36 @@ async def test_wizard_step_no_session(client: AsyncClient):
             "selection": {"style": "2d"},
         },
     )
-    assert res.status_code == 404
+    assert res.status_code == 401
 
 
-async def test_wizard_back_no_session(client: AsyncClient):
-    """존재하지 않는 세션으로 back 호출"""
+async def test_wizard_step_invalid_token(client: AsyncClient):
+    """잘못된 토큰으로 step 호출 → 403"""
+    res = await client.post(
+        "/api/wizard/step",
+        json={
+            "session_id": "nonexistent",
+            "step": "style",
+            "selection": {"style": "2d"},
+        },
+        headers={"X-Session-Token": "invalid-token"},
+    )
+    assert res.status_code == 403
+
+
+async def test_wizard_back_no_token(client: AsyncClient):
+    """토큰 없이 back 호출 → 401"""
     res = await client.post(
         "/api/wizard/back",
         json={"session_id": "nonexistent", "target_step": "style"},
     )
-    assert res.status_code == 404
+    assert res.status_code == 401
 
 
-async def test_wizard_generate_no_session(client: AsyncClient):
-    """존재하지 않는 세션으로 generate 호출"""
+async def test_wizard_generate_no_token(client: AsyncClient):
+    """토큰 없이 generate 호출 → 401"""
     res = await client.post(
         "/api/wizard/generate",
         json={"session_id": "nonexistent", "emoji_count": 8},
     )
-    assert res.status_code == 404
+    assert res.status_code == 401

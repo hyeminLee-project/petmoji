@@ -13,6 +13,11 @@ router = APIRouter()
 AVAILABLE_FORMATS = list(CONVERTERS.keys())
 
 
+# base64 이미지 URL 최대 크기: 10MB (base64 인코딩 오버헤드 포함)
+MAX_IMAGE_URL_LENGTH = 14 * 1024 * 1024
+MAX_EMOJIS_PER_REQUEST = 16
+
+
 class ConvertRequest(BaseModel):
     emojis: list[EmojiResult]
     format: str  # kakao, imessage, sticker, gif, wallpaper
@@ -61,6 +66,15 @@ async def convert_emojis(request: ConvertRequest):
 
     if not request.emojis:
         raise HTTPException(status_code=400, detail="변환할 이모지가 없습니다")
+
+    if len(request.emojis) > MAX_EMOJIS_PER_REQUEST:
+        raise HTTPException(
+            status_code=400, detail=f"한 번에 최대 {MAX_EMOJIS_PER_REQUEST}개까지 변환 가능합니다"
+        )
+
+    for emoji in request.emojis:
+        if len(emoji.image_url) > MAX_IMAGE_URL_LENGTH:
+            raise HTTPException(status_code=400, detail="이미지 데이터가 너무 큽니다 (최대 10MB)")
 
     try:
         converter = CONVERTERS[request.format]

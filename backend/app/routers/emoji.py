@@ -17,6 +17,27 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_PROMPT_LENGTH = 500
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic"}
 
+# 매직 바이트로 실제 이미지 타입 검증
+IMAGE_SIGNATURES = {
+    b"\xff\xd8\xff": "image/jpeg",
+    b"\x89PNG\r\n\x1a\n": "image/png",
+    b"RIFF": "image/webp",  # RIFF....WEBP
+}
+
+
+def _detect_content_type(data: bytes) -> str | None:
+    """파일 매직 바이트로 실제 Content-Type 감지."""
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    # HEIC: ftyp box
+    if len(data) >= 12 and data[4:8] == b"ftyp":
+        return "image/heic"
+    return None
+
 
 @router.post("/generate", response_model=GenerateResponse)
 @limiter.limit("10/minute")
@@ -52,17 +73,31 @@ async def generate_emojis(
             status_code=400, detail=f"프롬프트는 {MAX_PROMPT_LENGTH}자 이하여야 합니다"
         )
 
-    # 파일명 sanitize
-    content_type = file.content_type or "image/jpeg"
-    if content_type not in ALLOWED_CONTENT_TYPES:
-        raise HTTPException(status_code=400, detail=f"지원하지 않는 이미지 형식: {content_type}")
-
-    image_bytes = await file.read()
-    if len(image_bytes) > MAX_FILE_SIZE:
+    # Content-Length 사전 체크 (전체 로드 전 거부)
+    if file.size and file.size > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="파일 크기는 10MB 이하여야 합니다")
+
+    # 청크 단위 읽기로 메모리 보호
+    chunks = []
+    total_size = 0
+    while True:
+        chunk = await file.read(64 * 1024)  # 64KB씩 읽기
+        if not chunk:
+            break
+        total_size += len(chunk)
+        if total_size > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="파일 크기는 10MB 이하여야 합니다")
+        chunks.append(chunk)
+    image_bytes = b"".join(chunks)
 
     if not image_bytes:
         raise HTTPException(status_code=400, detail="빈 파일입니다")
+
+    # 매직 바이트로 실제 이미지 타입 검증
+    detected_type = _detect_content_type(image_bytes)
+    if not detected_type or detected_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(status_code=400, detail="지원하지 않는 이미지 형식입니다")
+    content_type = detected_type
 
     try:
         # Step 1: Analyze pet features

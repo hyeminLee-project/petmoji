@@ -51,6 +51,7 @@ export interface DetailOptions {
 /** 위자드 세션 */
 export interface WizardSession {
   session_id: string;
+  session_token: string;
   pet_features: PetFeatures;
   tier_config: Record<string, unknown>;
 }
