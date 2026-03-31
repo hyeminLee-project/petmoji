@@ -9,7 +9,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.graph.callbacks import SSECallback
-from app.graph.wizard import get_wizard_graph
+from app.graph.wizard import get_app_wizard_graph
 from app.models.schemas import (
     WizardBackRequest,
     WizardBackResponse,
@@ -55,7 +55,7 @@ async def wizard_start(
     _session_images[session_id] = tmp_path
 
     # LangGraph 실행: analyze 노드
-    graph = await get_wizard_graph()
+    graph = await get_app_wizard_graph()
     config = {"configurable": {"thread_id": session_id}}
 
     initial_state = {
@@ -87,7 +87,7 @@ async def wizard_start(
 @router.post("/step")
 async def wizard_step(request: WizardStepRequest):
     """위자드 단계 실행 + 미리보기 생성 (SSE)."""
-    graph = await get_wizard_graph()
+    graph = await get_app_wizard_graph()
     config = {"configurable": {"thread_id": request.session_id}}
 
     # 현재 상태 가져오기
@@ -163,7 +163,7 @@ async def wizard_step(request: WizardStepRequest):
 @router.post("/back", response_model=WizardBackResponse)
 async def wizard_back(request: WizardBackRequest):
     """이전 단계로 이동 (이미지 재생성 없이 기존 미리보기 반환)."""
-    graph = await get_wizard_graph()
+    graph = await get_app_wizard_graph()
     config = {"configurable": {"thread_id": request.session_id}}
 
     state = await graph.aget_state(config)
@@ -185,7 +185,7 @@ async def wizard_back(request: WizardBackRequest):
 @router.post("/generate")
 async def wizard_generate(request: WizardGenerateRequest):
     """전체 이모지 세트 생성 (SSE)."""
-    graph = await get_wizard_graph()
+    graph = await get_app_wizard_graph()
     config = {"configurable": {"thread_id": request.session_id}}
 
     state = await graph.aget_state(config)

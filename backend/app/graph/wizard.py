@@ -61,19 +61,27 @@ def build_wizard_graph() -> StateGraph:
     return graph
 
 
-# 싱글턴 체크포인터 + 컴파일된 그래프
-_checkpointer = None
-_compiled_graph = None
-
-
 async def get_wizard_graph():
-    """체크포인터가 설정된 컴파일 그래프 반환."""
-    global _checkpointer, _compiled_graph
-
-    if _compiled_graph is None:
-        _checkpointer = AsyncSqliteSaver.from_conn_string(":memory:")
-        await _checkpointer.setup()
+    """매 호출마다 새 체크포인터로 그래프 생성. (TODO: 프로덕션에서는 앱 수명에 맞춰 관리)"""
+    async with AsyncSqliteSaver.from_conn_string(":memory:") as checkpointer:
         graph = build_wizard_graph()
-        _compiled_graph = graph.compile(checkpointer=_checkpointer)
+        return graph.compile(checkpointer=checkpointer)
 
-    return _compiled_graph
+
+# 앱 수준 싱글턴 (서버 실행 시 사용)
+_app_graph = None
+_app_ctx = None
+_app_checkpointer = None
+
+
+async def get_app_wizard_graph():
+    """앱 수명 동안 유지되는 싱글턴 그래프."""
+    global _app_graph, _app_ctx, _app_checkpointer
+
+    if _app_graph is None:
+        _app_ctx = AsyncSqliteSaver.from_conn_string(":memory:")
+        _app_checkpointer = await _app_ctx.__aenter__()
+        graph = build_wizard_graph()
+        _app_graph = graph.compile(checkpointer=_app_checkpointer)
+
+    return _app_graph
