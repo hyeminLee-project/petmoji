@@ -27,7 +27,34 @@ export interface GenerateResponse {
 }
 
 /** 이모지 스타일 */
-export type EmojiStyle = "2d" | "3d";
+export type EmojiStyle = "2d" | "3d" | "watercolor" | "pixel" | "realistic";
+
+/** 티어 */
+export type Tier = "free" | "premium" | "custom";
+
+/** 위자드 단계 */
+export type WizardStep = "style" | "proportion" | "detail" | "reference" | "generate";
+
+/** 비율 */
+export type Proportion = "chibi" | "normal" | "realistic";
+
+/** 레퍼런스 */
+export type Reference = "kakao" | "line" | "sanrio" | "popmart" | "none";
+
+/** 세부 조정 */
+export interface DetailOptions {
+  eye_size: "big" | "normal" | "small";
+  outline: "bold" | "normal" | "none";
+  background: "white" | "transparent" | "gradient";
+}
+
+/** 위자드 세션 */
+export interface WizardSession {
+  session_id: string;
+  session_token: string;
+  pet_features: PetFeatures;
+  tier_config: Record<string, unknown>;
+}
 
 /** AI 이미지 생성 provider */
 export type ImageProvider = "openai" | "gemini";

@@ -17,6 +17,37 @@ EMOTIONS = [
 ]
 
 
+PROMPT_BLOCKLIST = [
+    "ignore previous",
+    "ignore above",
+    "disregard",
+    "forget your instructions",
+    "system prompt",
+    "you are now",
+    "act as",
+    "pretend to be",
+    "override",
+    "jailbreak",
+    "nsfw",
+    "nude",
+    "naked",
+    "violent",
+    "gore",
+    "weapon",
+    "drug",
+    "explicit",
+]
+
+
+def _sanitize_custom_prompt(prompt: str) -> str:
+    """커스텀 프롬프트에서 위험한 패턴 제거."""
+    lower = prompt.lower()
+    for blocked in PROMPT_BLOCKLIST:
+        if blocked in lower:
+            return ""
+    return prompt
+
+
 def _build_character_prompt(features: PetFeatures, style: str, custom_prompt: str = "") -> str:
     """Build the base character description from pet features."""
     style_desc = (
@@ -31,8 +62,9 @@ Distinctive features: {", ".join(features.distinctive_features)}.
 Style: {style_desc}.
 The character should be chibi-proportioned (big head, small body), centered on a white background, emoji-sized square composition."""
 
-    if custom_prompt:
-        base += f"\nAdditional instructions: {custom_prompt}"
+    sanitized = _sanitize_custom_prompt(custom_prompt)
+    if sanitized:
+        base += f"\nAdditional instructions: {sanitized}"
 
     return base
 

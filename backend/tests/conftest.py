@@ -7,8 +7,18 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from PIL import Image
 
+import app.graph.wizard as wizard_module
 from app.main import app
 from app.models.schemas import EmojiResult
+
+
+@pytest.fixture(autouse=True)
+async def reset_wizard_graph():
+    """각 테스트 전에 위자드 그래프 싱글턴 리셋."""
+    wizard_module._app_graph = None
+    wizard_module._app_ctx = None
+    wizard_module._app_checkpointer = None
+    yield
 
 
 @pytest.fixture
