@@ -25,14 +25,12 @@ from app.models.schemas import (
     WizardStepRequest,
 )
 from app.models.tiers import TierType, get_tier_config
+from app.services.validators import ALLOWED_CONTENT_TYPES, MAX_FILE_SIZE, detect_content_type
 
 logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/wizard")
-
-MAX_FILE_SIZE = 10 * 1024 * 1024
-ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic"}
 
 # 세션 TTL: 30분
 SESSION_TTL_SECONDS = 30 * 60
@@ -96,14 +94,31 @@ async def wizard_start(
     if len(_session_images) >= MAX_SESSIONS:
         raise HTTPException(status_code=503, detail="서버가 바쁩니다. 잠시 후 다시 시도해주세요.")
 
-    # 입력 검증
-    content_type = file.content_type or "image/jpeg"
-    if content_type not in ALLOWED_CONTENT_TYPES:
-        raise HTTPException(status_code=400, detail=f"지원하지 않는 이미지 형식: {content_type}")
+    # Content-Length 사전 체크
+    if file.size and file.size > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="파일 크기는 10MB 이하여야 합니다")
 
-    image_bytes = await file.read()
-    if not image_bytes or len(image_bytes) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="파일이 비어있거나 10MB를 초과합니다")
+    # 청크 단위 읽기로 메모리 보호
+    chunks = []
+    total_size = 0
+    while True:
+        chunk = await file.read(64 * 1024)
+        if not chunk:
+            break
+        total_size += len(chunk)
+        if total_size > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="파일 크기는 10MB 이하여야 합니다")
+        chunks.append(chunk)
+    image_bytes = b"".join(chunks)
+
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="빈 파일입니다")
+
+    # 매직 바이트로 실제 이미지 타입 검증
+    detected_type = detect_content_type(image_bytes)
+    if not detected_type or detected_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(status_code=400, detail="지원하지 않는 이미지 형식입니다")
+    content_type = detected_type
 
     # 이미지를 임시 파일에 저장
     session_id = str(uuid.uuid4())
