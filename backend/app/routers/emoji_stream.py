@@ -10,28 +10,14 @@ from slowapi.util import get_remote_address
 
 from app.services.analyzer import analyze_pet_photo
 from app.services.generator import EMOTIONS, PROVIDERS, _build_character_prompt
+from app.services.validators import ALLOWED_CONTENT_TYPES, MAX_FILE_SIZE, detect_content_type
 
 logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
-MAX_FILE_SIZE = 10 * 1024 * 1024
 MAX_PROMPT_LENGTH = 500
-ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic"}
-
-
-def _detect_content_type(data: bytes) -> str | None:
-    """파일 매직 바이트로 실제 Content-Type 감지."""
-    if data[:3] == b"\xff\xd8\xff":
-        return "image/jpeg"
-    if data[:8] == b"\x89PNG\r\n\x1a\n":
-        return "image/png"
-    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
-        return "image/webp"
-    if len(data) >= 12 and data[4:8] == b"ftyp":
-        return "image/heic"
-    return None
 
 
 def _sse_event(event: str, data: dict) -> str:
@@ -90,7 +76,7 @@ async def generate_emojis_stream(
         raise HTTPException(status_code=400, detail="빈 파일입니다")
 
     # 매직 바이트로 실제 이미지 타입 검증
-    detected_type = _detect_content_type(image_bytes)
+    detected_type = detect_content_type(image_bytes)
     if not detected_type or detected_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=400, detail="지원하지 않는 이미지 형식입니다")
     content_type = detected_type

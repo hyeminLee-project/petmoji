@@ -62,7 +62,7 @@ def build_wizard_graph() -> StateGraph:
 
 
 async def get_wizard_graph():
-    """매 호출마다 새 체크포인터로 그래프 생성. (TODO: 프로덕션에서는 앱 수명에 맞춰 관리)"""
+    """매 호출마다 새 체크포인터로 그래프 생성. 테스트용 — 프로덕션에서는 get_app_wizard_graph() 사용."""
     async with AsyncSqliteSaver.from_conn_string(":memory:") as checkpointer:
         graph = build_wizard_graph()
         return graph.compile(checkpointer=checkpointer)

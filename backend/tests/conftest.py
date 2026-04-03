@@ -8,7 +8,10 @@ from httpx import ASGITransport, AsyncClient
 from PIL import Image
 
 import app.graph.wizard as wizard_module
-from app.main import app
+import app.routers.emoji as emoji_module
+import app.routers.emoji_stream as emoji_stream_module
+import app.routers.wizard as wizard_router_module
+from app.main import app, limiter
 from app.models.schemas import EmojiResult
 
 
@@ -18,6 +21,20 @@ async def reset_wizard_graph():
     wizard_module._app_graph = None
     wizard_module._app_ctx = None
     wizard_module._app_checkpointer = None
+    yield
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """각 테스트 전에 모든 rate limiter 내부 저장소 리셋."""
+    for lim in [
+        limiter,
+        emoji_module.limiter,
+        emoji_stream_module.limiter,
+        wizard_router_module.limiter,
+    ]:
+        lim.limiter.storage.storage.clear()
+        lim.limiter.storage.expirations.clear()
     yield
 
 
