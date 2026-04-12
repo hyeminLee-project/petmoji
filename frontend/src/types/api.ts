@@ -60,7 +60,16 @@ export interface WizardSession {
 export type ImageProvider = "openai" | "gemini";
 
 /** 변환 포맷 */
-export type ConvertFormat = "kakao" | "imessage" | "sticker" | "gif" | "wallpaper";
+export type ConvertFormat =
+  | "kakao"
+  | "kakao_animated"
+  | "kakao_large_square"
+  | "kakao_large_wide"
+  | "kakao_large_tall"
+  | "imessage"
+  | "sticker"
+  | "gif"
+  | "wallpaper";
 
 /** 변환된 이모지 */
 export interface ConvertedEmoji {

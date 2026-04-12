@@ -5,7 +5,11 @@ import type { ConvertFormat, EmojiResult, ConvertedEmoji } from "@/types/api";
 import { convertEmojis } from "@/lib/api";
 
 const FORMATS: { id: ConvertFormat; icon: string; name: string; desc: string }[] = [
-  { id: "kakao", icon: "💬", name: "카카오톡", desc: "360x360 이모티콘" },
+  { id: "kakao", icon: "💬", name: "카카오톡", desc: "360x360 (최대 32개)" },
+  { id: "kakao_animated", icon: "💬", name: "카카오 움직이는", desc: "360x360 GIF (최대 24개)" },
+  { id: "kakao_large_square", icon: "💬", name: "카카오 큰(정사각)", desc: "540x540 (최대 16개)" },
+  { id: "kakao_large_wide", icon: "💬", name: "카카오 큰(가로)", desc: "540x300 (최대 16개)" },
+  { id: "kakao_large_tall", icon: "💬", name: "카카오 큰(세로)", desc: "300x540 (최대 16개)" },
   { id: "imessage", icon: "🍎", name: "iMessage", desc: "408x408 스티커" },
   { id: "sticker", icon: "✂️", name: "스티커 PNG", desc: "512x512 투명 배경" },
   { id: "gif", icon: "🎬", name: "움직이는 GIF", desc: "256x256 바운스" },
@@ -60,7 +64,7 @@ export default function FormatSelector({ emojis }: Props) {
       </h3>
 
       {/* Format buttons */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {FORMATS.map((fmt) => (
           <button
             key={fmt.id}

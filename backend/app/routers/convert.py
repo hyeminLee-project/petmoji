@@ -15,7 +15,15 @@ AVAILABLE_FORMATS = list(CONVERTERS.keys())
 
 # base64 이미지 URL 최대 크기: 10MB (base64 인코딩 오버헤드 포함)
 MAX_IMAGE_URL_LENGTH = 14 * 1024 * 1024
-MAX_EMOJIS_PER_REQUEST = 16
+# 포맷별 최대 이모지 개수
+FORMAT_MAX_COUNT = {
+    "kakao": 32,
+    "kakao_animated": 24,
+    "kakao_large_square": 16,
+    "kakao_large_wide": 16,
+    "kakao_large_tall": 16,
+}
+DEFAULT_MAX_EMOJIS = 16
 
 
 class ConvertRequest(BaseModel):
@@ -28,24 +36,40 @@ async def list_formats():
     """List available conversion formats."""
     return {
         "formats": [
-            {"id": "kakao", "name": "카카오톡 이모티콘", "size": "360x360", "limit": "150KB"},
+            {
+                "id": "kakao",
+                "name": "카카오톡 이모티콘",
+                "size": "360x360",
+                "limit": "150KB",
+                "max_count": 32,
+            },
+            {
+                "id": "kakao_animated",
+                "name": "카카오 움직이는 이모티콘",
+                "size": "360x360",
+                "limit": "650KB",
+                "max_count": 24,
+            },
             {
                 "id": "kakao_large_square",
                 "name": "카카오 큰이모티콘 (정사각)",
                 "size": "540x540",
                 "limit": "1MB",
+                "max_count": 16,
             },
             {
                 "id": "kakao_large_wide",
                 "name": "카카오 큰이모티콘 (가로)",
                 "size": "540x300",
                 "limit": "1MB",
+                "max_count": 16,
             },
             {
                 "id": "kakao_large_tall",
                 "name": "카카오 큰이모티콘 (세로)",
                 "size": "300x540",
                 "limit": "1MB",
+                "max_count": 16,
             },
             {"id": "imessage", "name": "iMessage 스티커", "size": "408x408"},
             {"id": "sticker", "name": "투명 스티커 PNG", "size": "512x512"},
@@ -67,9 +91,11 @@ async def convert_emojis(request: ConvertRequest):
     if not request.emojis:
         raise HTTPException(status_code=400, detail="변환할 이모지가 없습니다")
 
-    if len(request.emojis) > MAX_EMOJIS_PER_REQUEST:
+    max_count = FORMAT_MAX_COUNT.get(request.format, DEFAULT_MAX_EMOJIS)
+    if len(request.emojis) > max_count:
         raise HTTPException(
-            status_code=400, detail=f"한 번에 최대 {MAX_EMOJIS_PER_REQUEST}개까지 변환 가능합니다"
+            status_code=400,
+            detail=f"{request.format} 포맷은 최대 {max_count}개까지 변환 가능합니다",
         )
 
     for emoji in request.emojis:
@@ -79,6 +105,8 @@ async def convert_emojis(request: ConvertRequest):
     try:
         converter = CONVERTERS[request.format]
         converted = converter(request.emojis)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error("Conversion failed (%s): %s", request.format, e)
         raise HTTPException(status_code=500, detail="포맷 변환 중 오류가 발생했습니다") from e
