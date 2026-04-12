@@ -35,10 +35,18 @@ KAKAO_SIZES = {
 
 # 용량 제한 (bytes)
 SIZE_LIMITS = {
-    "standard": 150 * 1024,  # 150KB
+    "standard": 150 * 1024,  # 150KB (멈춰있는 이모티콘)
+    "animated": 650 * 1024,  # 650KB (움직이는 이모티콘)
     "large_square": 1024 * 1024,  # 1MB
     "large_wide": 1024 * 1024,
     "large_tall": 1024 * 1024,
+}
+
+# 카카오 이모티콘 세트 개수 제한
+KAKAO_COUNT_LIMITS = {
+    "standard": 32,  # 멈춰있는 이모티콘: PNG 32개
+    "animated": 24,  # 움직이는 이모티콘: PNG 21개 + GIF 3개
+    "large": 16,  # 큰 이모티콘: PNG 13개 + GIF 3개
 }
 
 
@@ -64,18 +72,29 @@ def _fit_to_canvas(
 
 
 def _optimize_size(img: Image.Image, max_bytes: int) -> str:
-    """용량 제한 내로 PNG 최적화. 초과 시 리사이즈."""
+    """용량 제한 내로 PNG 최적화. 초과 시 리사이즈.
+
+    Raises:
+        ValueError: 최소 스케일까지 축소해도 용량 초과 시
+    """
     buf = io.BytesIO()
     img.save(buf, format="PNG", dpi=DPI, optimize=True)
 
-    # 용량 초과 시 점진적 축소
-    scale = 1.0
-    while buf.tell() > max_bytes and scale > 0.3:
-        scale -= 0.1
+    scale = 0.9
+    max_attempts = 7
+    for _ in range(max_attempts):
+        if buf.tell() <= max_bytes:
+            break
         new_size = (int(img.width * scale), int(img.height * scale))
         resized = img.resize(new_size, Image.LANCZOS)
         buf = io.BytesIO()
         resized.save(buf, format="PNG", dpi=DPI, optimize=True)
+        scale -= 0.1
+
+    if buf.tell() > max_bytes:
+        raise ValueError(
+            f"이미지 최적화 실패: 최소 크기로 축소해도 용량 제한({max_bytes // 1024}KB)을 초과합니다"
+        )
 
     import base64
 
@@ -93,7 +112,17 @@ def convert_kakao(
         emojis: 이모지 리스트
         variant: "standard" (360x360), "large_square" (540x540),
                  "large_wide" (540x300), "large_tall" (300x540)
+
+    Raises:
+        ValueError: 카카오 규격 개수 초과 시
     """
+    count_category = "large" if variant.startswith("large") else variant
+    max_count = KAKAO_COUNT_LIMITS.get(count_category, KAKAO_COUNT_LIMITS["standard"])
+    if len(emojis) > max_count:
+        raise ValueError(
+            f"카카오 {count_category} 이모티콘은 최대 {max_count}개입니다 (입력: {len(emojis)}개)"
+        )
+
     canvas_size = KAKAO_SIZES.get(variant, KAKAO_SIZES["standard"])
     max_bytes = SIZE_LIMITS.get(variant, SIZE_LIMITS["standard"])
 

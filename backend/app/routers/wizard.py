@@ -1,5 +1,6 @@
 """위자드 API 엔드포인트 — LangGraph 기반 단계별 가이드."""
 
+import asyncio
 import contextlib
 import hashlib
 import hmac
@@ -37,6 +38,8 @@ ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic"}
 # 세션 TTL: 30분
 SESSION_TTL_SECONDS = 30 * 60
 MAX_SESSIONS = 1000
+# 백그라운드 정리 주기: 5분
+CLEANUP_INTERVAL_SECONDS = 5 * 60
 
 # 세션 토큰 서명용 비밀키 (프로세스 시작 시 생성)
 _SESSION_SECRET = secrets.token_bytes(32)
@@ -45,6 +48,8 @@ _SESSION_SECRET = secrets.token_bytes(32)
 _session_images: dict[str, str] = {}
 _session_created: dict[str, float] = {}
 _session_tokens: dict[str, str] = {}
+
+_cleanup_task: asyncio.Task | None = None
 
 
 def _generate_session_token(session_id: str) -> str:
@@ -60,6 +65,22 @@ def _verify_session_token(session_id: str, token: str | None) -> None:
     if not expected or not hmac.compare_digest(expected, token):
         raise HTTPException(status_code=403, detail="유효하지 않은 세션 토큰입니다")
 
+    # 세션 만료 체크
+    created = _session_created.get(session_id)
+    if not created or time.time() - created > SESSION_TTL_SECONDS:
+        _remove_session(session_id)
+        raise HTTPException(status_code=401, detail="세션이 만료되었습니다")
+
+
+def _remove_session(session_id: str) -> None:
+    """단일 세션 정리."""
+    tmp_path = _session_images.pop(session_id, None)
+    if tmp_path:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_path)
+    _session_created.pop(session_id, None)
+    _session_tokens.pop(session_id, None)
+
 
 def _cleanup_expired_sessions() -> None:
     """만료된 세션의 임시 파일 삭제 및 메모리 정리."""
@@ -68,15 +89,26 @@ def _cleanup_expired_sessions() -> None:
         sid for sid, created in _session_created.items() if now - created > SESSION_TTL_SECONDS
     ]
     for sid in expired:
-        # 임시 파일 삭제
-        tmp_path = _session_images.pop(sid, None)
-        if tmp_path:
-            with contextlib.suppress(OSError):
-                os.unlink(tmp_path)
-        _session_created.pop(sid, None)
-        _session_tokens.pop(sid, None)
+        _remove_session(sid)
     if expired:
         logger.info("Cleaned up %d expired wizard sessions", len(expired))
+
+
+async def _periodic_cleanup() -> None:
+    """백그라운드에서 주기적으로 만료 세션 정리."""
+    while True:
+        await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)
+        try:
+            _cleanup_expired_sessions()
+        except Exception:
+            logger.exception("Session cleanup failed")
+
+
+def start_cleanup_task() -> None:
+    """앱 시작 시 호출하여 백그라운드 정리 태스크 시작."""
+    global _cleanup_task
+    if _cleanup_task is None or _cleanup_task.done():
+        _cleanup_task = asyncio.create_task(_periodic_cleanup())
 
 
 @router.post("/start")
@@ -220,8 +252,6 @@ async def wizard_step(
         finally:
             await callback.done()
 
-    import asyncio
-
     asyncio.create_task(run_and_stream())
 
     return StreamingResponse(
@@ -322,8 +352,6 @@ async def wizard_generate(
             await callback.emit("error", {"message": "이모지 생성 중 오류가 발생했습니다"})
         finally:
             await callback.done()
-
-    import asyncio
 
     asyncio.create_task(run_and_stream())
 
