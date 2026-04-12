@@ -10,9 +10,10 @@ async def test_formats_list(client: AsyncClient):
     res = await client.get("/api/formats")
     assert res.status_code == 200
     data = res.json()
-    assert len(data["formats"]) == 8
+    assert len(data["formats"]) == 9
     ids = {f["id"] for f in data["formats"]}
     assert "kakao" in ids
+    assert "kakao_animated" in ids
     assert "kakao_large_square" in ids
     assert "imessage" in ids
     assert "sticker" in ids

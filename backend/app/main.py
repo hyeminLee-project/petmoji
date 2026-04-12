@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
@@ -15,8 +16,17 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.routers import convert, emoji, emoji_stream, wizard
 from app.routers.wizard import start_cleanup_task
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_cleanup_task()
+    yield
+
+
 limiter = Limiter(key_func=get_remote_address)
-app = FastAPI(title="PetMoji API", version="0.1.0", docs_url=None, redoc_url=None)
+app = FastAPI(
+    title="PetMoji API", version="0.1.0", docs_url=None, redoc_url=None, lifespan=lifespan
+)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -63,11 +73,6 @@ app.include_router(emoji.router, prefix="/api")
 app.include_router(emoji_stream.router, prefix="/api")
 app.include_router(convert.router, prefix="/api")
 app.include_router(wizard.router, prefix="/api")
-
-
-@app.on_event("startup")
-async def on_startup():
-    start_cleanup_task()
 
 
 @app.get("/health")
