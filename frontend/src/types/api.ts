@@ -59,6 +59,19 @@ export interface WizardSession {
 /** AI 이미지 생성 provider */
 export type ImageProvider = "openai" | "gemini";
 
+/** 악세사리 */
+export type Accessory =
+  | "none" | "ribbon" | "bowtie" | "crown" | "flower" | "glasses"
+  | "hat" | "scarf" | "bandana" | "headband";
+
+/** 배경 */
+export type Background =
+  | "white" | "transparent" | "gradient"
+  | "park" | "room" | "cafe" | "beach" | "snow" | "sky" | "night";
+
+/** 시간대 */
+export type TimeOfDay = "none" | "morning" | "afternoon" | "sunset" | "night";
+
 /** 변환 포맷 */
 export type ConvertFormat =
   | "kakao"

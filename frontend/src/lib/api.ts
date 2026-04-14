@@ -1,4 +1,4 @@
-import type { GenerateResponse, EmojiStyle, ImageProvider, ConvertFormat, ConvertResponse, EmojiResult, FormatInfo } from "@/types/api";
+import type { GenerateResponse, EmojiStyle, ImageProvider, ConvertFormat, ConvertResponse, EmojiResult, FormatInfo, Accessory, Background, TimeOfDay } from "@/types/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -10,7 +10,10 @@ export async function generateEmojis(
   style: EmojiStyle = "2d",
   emojiCount: number = 8,
   provider: ImageProvider = "openai",
-  customPrompt: string = ""
+  customPrompt: string = "",
+  accessory: Accessory = "none",
+  background: Background = "white",
+  timeOfDay: TimeOfDay = "none",
 ): Promise<GenerateResponse> {
   const formData = new FormData();
   formData.append("file", file);
@@ -18,6 +21,9 @@ export async function generateEmojis(
   formData.append("emoji_count", String(emojiCount));
   formData.append("provider", provider);
   formData.append("custom_prompt", customPrompt);
+  formData.append("accessory", accessory);
+  formData.append("background", background);
+  formData.append("time_of_day", timeOfDay);
 
   const res = await fetch(`${API_BASE}/api/generate`, {
     method: "POST",

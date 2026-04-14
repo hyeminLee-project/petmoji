@@ -181,7 +181,7 @@ async def wizard_start(
 
 
 @router.post("/step")
-@limiter.limit("10/minute")
+@limiter.limit("20/minute")
 async def wizard_step(
     request: Request,
     body: WizardStepRequest,

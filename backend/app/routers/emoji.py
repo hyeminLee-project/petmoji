@@ -5,6 +5,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.models.schemas import GenerateResponse
+from app.models.tiers import ACCESSORIES, BACKGROUNDS, TIME_OF_DAY
 from app.services.analyzer import analyze_pet_photo
 from app.services.generator import generate_emoji_set
 
@@ -49,6 +50,9 @@ async def generate_emojis(
     provider: str = Form("gemini"),
     analyzer: str = Form("gemini"),
     custom_prompt: str = Form(""),
+    accessory: str = Form("none"),
+    background: str = Form("white"),
+    time_of_day: str = Form("none"),
 ):
     """Upload a pet photo and generate a personalized emoji set."""
     # 입력 검증
@@ -72,6 +76,15 @@ async def generate_emojis(
         raise HTTPException(
             status_code=400, detail=f"프롬프트는 {MAX_PROMPT_LENGTH}자 이하여야 합니다"
         )
+
+    if accessory not in ACCESSORIES:
+        raise HTTPException(status_code=400, detail=f"지원하지 않는 악세사리: {accessory}")
+
+    if background not in BACKGROUNDS:
+        raise HTTPException(status_code=400, detail=f"지원하지 않는 배경: {background}")
+
+    if time_of_day not in TIME_OF_DAY:
+        raise HTTPException(status_code=400, detail=f"지원하지 않는 시간대: {time_of_day}")
 
     # Content-Length 사전 체크 (전체 로드 전 거부)
     if file.size and file.size > MAX_FILE_SIZE:
@@ -111,7 +124,16 @@ async def generate_emojis(
 
     try:
         # Step 2: Generate emoji set with GPT-4o
-        emojis = await generate_emoji_set(pet_features, style, emoji_count, provider, custom_prompt)
+        emojis = await generate_emoji_set(
+            pet_features,
+            style,
+            emoji_count,
+            provider,
+            custom_prompt,
+            accessory,
+            background,
+            time_of_day,
+        )
     except Exception as e:
         logger.exception("Emoji generation failed")
         raise HTTPException(status_code=500, detail="이모지 생성 중 오류가 발생했습니다") from e

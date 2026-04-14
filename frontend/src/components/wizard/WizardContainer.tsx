@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type {
   WizardStep,
   EmojiStyle,
@@ -30,7 +30,7 @@ interface Props {
 
 const STEP_ORDER: WizardStep[] = ["style", "proportion", "detail", "reference", "generate"];
 
-export default function WizardContainer({ session, provider }: Props) {
+export default function WizardContainer({ session, provider: _provider }: Props) {
   const [currentStep, setCurrentStep] = useState<WizardStep>("style");
   const [style, setStyle] = useState<EmojiStyle>("2d");
   const [proportion, setProportion] = useState<Proportion>("chibi");
@@ -51,27 +51,64 @@ export default function WizardContainer({ session, provider }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const allowedStyles = (session.tier_config as { styles?: string[] }).styles || ["2d", "3d"];
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleConfirmStep = () => {
+  const getSelection = useCallback(() => {
+    if (currentStep === "style") return { style };
+    if (currentStep === "proportion") return { proportion };
+    if (currentStep === "detail") return { detail };
+    return { reference };
+  }, [currentStep, style, proportion, detail, reference]);
+
+  const requestPreview = useCallback((step: WizardStep, selection: Record<string, unknown>) => {
     setPreviewLoading(true);
     setError(null);
 
-    const selection =
-      currentStep === "style"
-        ? { style }
-        : currentStep === "proportion"
-          ? { proportion }
-          : currentStep === "detail"
-            ? { detail }
-            : { reference };
+    wizardStep(session.session_id, session.session_token, step, selection, {
+      onProgress: (data) => setPreviewMessage(data.message),
+      onPreview: (data) => {
+        setPreviews((prev) => ({ ...prev, [step]: data.image_url }));
+        setPreviewLoading(false);
+      },
+      onError: (err) => {
+        setError(err.message);
+        setPreviewLoading(false);
+      },
+    });
+  }, [session.session_id, session.session_token]);
 
-    wizardStep(session.session_id, session.session_token, currentStep, selection, {
+  // 옵션 변경 시 1.5초 디바운스로 자동 미리보기 (레이트 리밋 방지)
+  useEffect(() => {
+    if (currentStep === "generate") return;
+    if (previewLoading) return;
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      requestPreview(currentStep, getSelection());
+    }, 1500);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [style, proportion, detail, reference, currentStep, getSelection, requestPreview, previewLoading]);
+
+  const handleConfirmStep = () => {
+    // 이미 미리보기가 있으면 바로 다음 단계로
+    const idx = STEP_ORDER.indexOf(currentStep);
+    if (previews[currentStep] && idx < STEP_ORDER.length - 1) {
+      setCurrentStep(STEP_ORDER[idx + 1]);
+      return;
+    }
+
+    // 미리보기 없으면 요청 후 다음 단계로
+    setPreviewLoading(true);
+    setError(null);
+
+    wizardStep(session.session_id, session.session_token, currentStep, getSelection(), {
       onProgress: (data) => setPreviewMessage(data.message),
       onPreview: (data) => {
         setPreviews((prev) => ({ ...prev, [currentStep]: data.image_url }));
         setPreviewLoading(false);
-        // 다음 단계로
-        const idx = STEP_ORDER.indexOf(currentStep);
         if (idx < STEP_ORDER.length - 1) {
           setCurrentStep(STEP_ORDER[idx + 1]);
         }
@@ -113,7 +150,16 @@ export default function WizardContainer({ session, provider }: Props) {
         ]);
       },
       onComplete: (data) => {
-        setResult(data as GenerateResponse);
+        const completeData = data as GenerateResponse;
+        // complete 이벤트의 emojis가 비어있으면 partialEmojis로 대체
+        setPartialEmojis((prev) => {
+          const finalEmojis = completeData.emojis?.length ? completeData.emojis : prev;
+          setResult({
+            ...completeData,
+            emojis: finalEmojis,
+          });
+          return prev;
+        });
         setGenerating(false);
       },
       onError: (err) => {
@@ -209,7 +255,7 @@ export default function WizardContainer({ session, provider }: Props) {
                   disabled={previewLoading}
                   className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white font-semibold rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
                 >
-                  {previewLoading ? "생성 중..." : "확인 →"}
+                  {previewLoading ? "미리보기 생성 중..." : "다음 →"}
                 </button>
               )}
             </div>

@@ -48,19 +48,79 @@ def _sanitize_custom_prompt(prompt: str) -> str:
     return prompt
 
 
-def _build_character_prompt(features: PetFeatures, style: str, custom_prompt: str = "") -> str:
+STYLE_DESCRIPTIONS = {
+    "2d": "clean 2D vector art style, flat colors, bold outlines, like Kakao Friends or LINE stickers",
+    "3d": "cute 3D rendered style, soft lighting, clay/vinyl figure look, like Pop Mart figurines",
+    "watercolor": "soft watercolor painting style, gentle brushstrokes, pastel tones",
+    "pixel": "retro pixel art style, 16-bit game aesthetic, crisp pixels",
+    "realistic": "semi-realistic illustration style, detailed fur textures, soft shading",
+}
+
+ACCESSORY_DESCRIPTIONS = {
+    "none": "",
+    "ribbon": "wearing a cute ribbon on head",
+    "bowtie": "wearing a small bowtie around neck",
+    "crown": "wearing a tiny golden crown",
+    "flower": "with a flower tucked behind one ear",
+    "glasses": "wearing small round glasses",
+    "hat": "wearing a cute bucket hat",
+    "scarf": "wearing a cozy knit scarf",
+    "bandana": "wearing a patterned bandana",
+    "headband": "wearing a cute headband with ears",
+}
+
+BACKGROUND_DESCRIPTIONS = {
+    "white": "on a clean white background",
+    "transparent": "on a clean white background",
+    "gradient": "on a soft pastel gradient background",
+    "park": "in a sunny green park with trees",
+    "room": "in a cozy living room with warm lighting",
+    "cafe": "sitting in a cute cafe with coffee cups",
+    "beach": "on a sandy beach with gentle waves",
+    "snow": "in a snowy winter wonderland",
+    "sky": "floating among fluffy clouds in a blue sky",
+    "night": "under a starry night sky with moon",
+}
+
+TIME_DESCRIPTIONS = {
+    "none": "",
+    "morning": "in warm golden morning light",
+    "afternoon": "in bright daylight",
+    "sunset": "bathed in warm orange sunset glow",
+    "night": "under soft moonlight with a dark sky",
+}
+
+
+def _build_character_prompt(
+    features: PetFeatures,
+    style: str,
+    custom_prompt: str = "",
+    accessory: str = "none",
+    background: str = "white",
+    time_of_day: str = "none",
+) -> str:
     """Build the base character description from pet features."""
-    style_desc = (
-        "clean 2D vector art style, flat colors, bold outlines, like Kakao Friends or LINE stickers"
-        if style == "2d"
-        else "cute 3D rendered style, soft lighting, clay/vinyl figure look, like Pop Mart figurines"
-    )
+    style_desc = STYLE_DESCRIPTIONS.get(style, STYLE_DESCRIPTIONS["2d"])
 
     base = f"""A cute character based on a {features.animal_type} ({features.breed}).
 Physical traits: {features.fur_color} {features.fur_pattern} fur, {features.ear_shape} ears, {features.eye_shape} {features.eye_color} eyes, {features.nose_shape} nose, {features.body_shape} body.
 Distinctive features: {", ".join(features.distinctive_features)}.
 Style: {style_desc}.
-The character should be chibi-proportioned (big head, small body), centered on a white background, emoji-sized square composition."""
+The character should be chibi-proportioned (big head, small body), centered, emoji-sized square composition."""
+
+    # 악세사리
+    acc_desc = ACCESSORY_DESCRIPTIONS.get(accessory, "")
+    if acc_desc:
+        base += f"\nAccessory: {acc_desc}."
+
+    # 배경
+    bg_desc = BACKGROUND_DESCRIPTIONS.get(background, BACKGROUND_DESCRIPTIONS["white"])
+    base += f"\nBackground: {bg_desc}."
+
+    # 시간대
+    time_desc = TIME_DESCRIPTIONS.get(time_of_day, "")
+    if time_desc:
+        base += f"\nLighting: {time_desc}."
 
     sanitized = _sanitize_custom_prompt(custom_prompt)
     if sanitized:
@@ -126,21 +186,37 @@ async def generate_emoji_set(
     emoji_count: int = 8,
     provider: str = "openai",
     custom_prompt: str = "",
+    accessory: str = "none",
+    background: str = "white",
+    time_of_day: str = "none",
 ) -> list[EmojiResult]:
     """Generate a set of emoji images using the selected AI provider."""
     if provider not in PROVIDERS:
         raise ValueError(f"지원하지 않는 provider: {provider}. 가능: {list(PROVIDERS.keys())}")
 
     generate_fn = PROVIDERS[provider]
-    base_prompt = _build_character_prompt(features, style, custom_prompt)
+    base_prompt = _build_character_prompt(
+        features,
+        style,
+        custom_prompt,
+        accessory,
+        background,
+        time_of_day,
+    )
+
+    has_scene_bg = background not in ("white", "transparent", "gradient")
 
     emotions_to_generate = EMOTIONS[:emoji_count]
     results: list[EmojiResult] = []
 
     for emotion, description in emotions_to_generate:
+        suffix = "No text, no watermark."
+        if not has_scene_bg:
+            suffix += " Clean background."
+
         prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
-No text, no watermark, clean background."""
+{suffix}"""
 
         logger.info("Generating %s emoji with %s", emotion, provider)
         image_url = await generate_fn(prompt)
