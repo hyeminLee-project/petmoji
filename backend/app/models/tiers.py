@@ -4,12 +4,43 @@ from typing import Literal
 
 TierType = Literal["free", "premium", "custom"]
 
+ACCESSORIES = [
+    "none",
+    "ribbon",
+    "bowtie",
+    "crown",
+    "flower",
+    "glasses",
+    "hat",
+    "scarf",
+    "bandana",
+    "headband",
+]
+
+BACKGROUNDS = [
+    "white",
+    "transparent",
+    "gradient",
+    "park",
+    "room",
+    "cafe",
+    "beach",
+    "snow",
+    "sky",
+    "night",
+]
+
+TIME_OF_DAY = ["none", "morning", "afternoon", "sunset", "night"]
+
 TIER_CONFIG = {
     "free": {
         "styles": ["2d", "3d"],
         "max_emotions": 4,
         "guided_wizard": False,
         "custom_prompt": False,
+        "accessories": ["none"],
+        "backgrounds": ["white", "transparent"],
+        "time_of_day": ["none"],
         "formats": ["png"],
         "regeneration_limit": 1,
     },
@@ -18,6 +49,9 @@ TIER_CONFIG = {
         "max_emotions": 16,
         "guided_wizard": True,
         "custom_prompt": False,
+        "accessories": ACCESSORIES,
+        "backgrounds": BACKGROUNDS,
+        "time_of_day": TIME_OF_DAY,
         "formats": [
             "png",
             "kakao",
@@ -36,6 +70,9 @@ TIER_CONFIG = {
         "max_emotions": 16,
         "guided_wizard": True,
         "custom_prompt": True,
+        "accessories": ACCESSORIES,
+        "backgrounds": BACKGROUNDS,
+        "time_of_day": TIME_OF_DAY,
         "formats": [
             "png",
             "kakao",
