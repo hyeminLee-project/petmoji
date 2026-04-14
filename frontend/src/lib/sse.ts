@@ -35,7 +35,10 @@ export function generateEmojisStream(
   emojiCount: number,
   provider: ImageProvider,
   customPrompt: string,
-  callbacks: StreamCallbacks
+  callbacks: StreamCallbacks,
+  accessory: string = "none",
+  background: string = "white",
+  timeOfDay: string = "none",
 ): AbortController {
   const controller = new AbortController();
 
@@ -45,6 +48,9 @@ export function generateEmojisStream(
   formData.append("emoji_count", String(emojiCount));
   formData.append("provider", provider);
   formData.append("custom_prompt", customPrompt);
+  formData.append("accessory", accessory);
+  formData.append("background", background);
+  formData.append("time_of_day", timeOfDay);
 
   (async () => {
     try {

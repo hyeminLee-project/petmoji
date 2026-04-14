@@ -9,6 +9,7 @@ import FormatSelector from "@/components/FormatSelector";
 import ProviderSelector from "@/components/ProviderSelector";
 import CustomPrompt from "@/components/CustomPrompt";
 import TierSelector from "@/components/TierSelector";
+import SceneSelector from "@/components/SceneSelector";
 import WizardContainer from "@/components/wizard/WizardContainer";
 import type {
   GenerateResponse,
@@ -17,6 +18,9 @@ import type {
   EmojiResult,
   Tier,
   WizardSession,
+  Accessory,
+  Background,
+  TimeOfDay,
 } from "@/types/api";
 import { generateEmojisStream, type ProgressEvent } from "@/lib/sse";
 import { wizardStart } from "@/lib/wizard-api";
@@ -28,6 +32,9 @@ export default function Home() {
   const [style, setStyle] = useState<EmojiStyle>("2d");
   const [provider, setProvider] = useState<ImageProvider>("openai");
   const [customPrompt, setCustomPrompt] = useState("");
+  const [accessory, setAccessory] = useState<Accessory>("none");
+  const [background, setBackground] = useState<Background>("white");
+  const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>("none");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,25 +65,29 @@ export default function Home() {
     setProgress(null);
     setPartialEmojis([]);
 
-    abortRef.current = generateEmojisStream(file, style, 4, provider, customPrompt, {
-      onProgress: (event) => setProgress(event),
-      onEmoji: (event) => {
-        setPartialEmojis((prev) => [
-          ...prev,
-          { emotion: event.emotion, image_url: event.image_url },
-        ]);
+    abortRef.current = generateEmojisStream(
+      file, style, 4, provider, customPrompt,
+      {
+        onProgress: (event) => setProgress(event),
+        onEmoji: (event) => {
+          setPartialEmojis((prev) => [
+            ...prev,
+            { emotion: event.emotion, image_url: event.image_url },
+          ]);
+        },
+        onComplete: (data) => {
+          setResult(data as GenerateResponse);
+          setLoading(false);
+          setProgress(null);
+        },
+        onError: (err) => {
+          setError(err.message);
+          setLoading(false);
+          setProgress(null);
+        },
       },
-      onComplete: (data) => {
-        setResult(data as GenerateResponse);
-        setLoading(false);
-        setProgress(null);
-      },
-      onError: (err) => {
-        setError(err.message);
-        setLoading(false);
-        setProgress(null);
-      },
-    });
+      accessory, background, timeOfDay,
+    );
   };
 
   // 프리미엄/커스텀 플로우: 위자드 시작
@@ -136,6 +147,17 @@ export default function Home() {
                     <CustomPrompt value={customPrompt} onChange={setCustomPrompt} />
                   </>
                 )}
+
+                {/* 프리미엄: 장면 설정 (악세사리, 배경, 시간대) */}
+                <SceneSelector
+                  accessory={accessory}
+                  background={background}
+                  timeOfDay={timeOfDay}
+                  onAccessoryChange={setAccessory}
+                  onBackgroundChange={setBackground}
+                  onTimeOfDayChange={setTimeOfDay}
+                  isPremium={isPremium}
+                />
 
                 {loading ? (
                   <button
