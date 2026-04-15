@@ -26,14 +26,12 @@ from app.models.schemas import (
     WizardStepRequest,
 )
 from app.models.tiers import TierType, get_tier_config
+from app.utils.upload import read_and_validate_image
 
 logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/wizard")
-
-MAX_FILE_SIZE = 10 * 1024 * 1024
-ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic"}
 
 # 세션 TTL: 30분
 SESSION_TTL_SECONDS = 30 * 60
@@ -111,6 +109,20 @@ def start_cleanup_task() -> None:
         _cleanup_task = asyncio.create_task(_periodic_cleanup())
 
 
+async def stop_cleanup_task() -> None:
+    """앱 종료 시 호출하여 백그라운드 정리 태스크 취소 + 남은 세션 정리."""
+    global _cleanup_task
+    if _cleanup_task and not _cleanup_task.done():
+        _cleanup_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await _cleanup_task
+        _cleanup_task = None
+
+    # 남은 세션의 임시 파일 모두 정리
+    for sid in list(_session_images):
+        _remove_session(sid)
+
+
 @router.post("/start")
 @limiter.limit("5/minute")
 async def wizard_start(
@@ -128,14 +140,8 @@ async def wizard_start(
     if len(_session_images) >= MAX_SESSIONS:
         raise HTTPException(status_code=503, detail="서버가 바쁩니다. 잠시 후 다시 시도해주세요.")
 
-    # 입력 검증
-    content_type = file.content_type or "image/jpeg"
-    if content_type not in ALLOWED_CONTENT_TYPES:
-        raise HTTPException(status_code=400, detail=f"지원하지 않는 이미지 형식: {content_type}")
-
-    image_bytes = await file.read()
-    if not image_bytes or len(image_bytes) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="파일이 비어있거나 10MB를 초과합니다")
+    # 입력 검증 (매직 바이트 기반 파일 타입 검증 + 크기 제한)
+    image_bytes, content_type = await read_and_validate_image(file)
 
     # 이미지를 임시 파일에 저장
     session_id = str(uuid.uuid4())
