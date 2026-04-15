@@ -6,8 +6,15 @@ from app.graph.prompts import build_preview_prompt, build_wizard_prompt
 from app.graph.state import WizardState
 from app.services.analyzer import analyze_pet_photo
 from app.services.generator import EMOTIONS, PROVIDERS
+from app.utils.upload import MAX_PROMPT_LENGTH
 
 logger = logging.getLogger(__name__)
+
+
+def _truncate_custom_prompt(state: WizardState) -> str:
+    """custom_prompt를 최대 길이로 자른다."""
+    raw = state.get("custom_prompt", "")
+    return raw[:MAX_PROMPT_LENGTH] if raw else ""
 
 
 async def _generate_preview(state: WizardState) -> str:
@@ -18,7 +25,7 @@ async def _generate_preview(state: WizardState) -> str:
         proportion=state.get("proportion", "chibi"),
         detail=state.get("detail"),
         reference=state.get("reference", "none"),
-        custom_prompt=state.get("custom_prompt", ""),
+        custom_prompt=_truncate_custom_prompt(state),
     )
     generate_fn = PROVIDERS[state.get("provider", "gemini")]
     return await generate_fn(prompt)
@@ -101,7 +108,7 @@ async def generate_node(state: WizardState) -> dict:
         proportion=state.get("proportion", "chibi"),
         detail=state.get("detail"),
         reference=state.get("reference", "none"),
-        custom_prompt=state.get("custom_prompt", ""),
+        custom_prompt=_truncate_custom_prompt(state),
     )
 
     emotions_to_generate = EMOTIONS[:emoji_count]
