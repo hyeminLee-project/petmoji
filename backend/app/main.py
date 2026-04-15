@@ -13,14 +13,17 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.graph.wizard import shutdown_wizard_graph
 from app.routers import convert, emoji, emoji_stream, wizard
-from app.routers.wizard import start_cleanup_task
+from app.routers.wizard import start_cleanup_task, stop_cleanup_task
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     start_cleanup_task()
     yield
+    await stop_cleanup_task()
+    await shutdown_wizard_graph()
 
 
 limiter = Limiter(key_func=get_remote_address)

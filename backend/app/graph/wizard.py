@@ -61,13 +61,6 @@ def build_wizard_graph() -> StateGraph:
     return graph
 
 
-async def get_wizard_graph():
-    """매 호출마다 새 체크포인터로 그래프 생성. (TODO: 프로덕션에서는 앱 수명에 맞춰 관리)"""
-    async with AsyncSqliteSaver.from_conn_string(":memory:") as checkpointer:
-        graph = build_wizard_graph()
-        return graph.compile(checkpointer=checkpointer)
-
-
 # 앱 수준 싱글턴 (서버 실행 시 사용)
 _app_graph = None
 _app_ctx = None
@@ -85,3 +78,14 @@ async def get_app_wizard_graph():
         _app_graph = graph.compile(checkpointer=_app_checkpointer)
 
     return _app_graph
+
+
+async def shutdown_wizard_graph() -> None:
+    """앱 종료 시 체크포인터 리소스 정리."""
+    global _app_graph, _app_ctx, _app_checkpointer
+
+    if _app_ctx is not None:
+        await _app_ctx.__aexit__(None, None, None)
+    _app_graph = None
+    _app_ctx = None
+    _app_checkpointer = None
