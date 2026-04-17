@@ -60,11 +60,14 @@ export default function WizardContainer({ session, provider: _provider }: Props)
     return { reference };
   }, [currentStep, style, proportion, detail, reference]);
 
+  const abortRef = useRef<AbortController | null>(null);
+
   const requestPreview = useCallback((step: WizardStep, selection: Record<string, unknown>) => {
+    if (abortRef.current) abortRef.current.abort();
     setPreviewLoading(true);
     setError(null);
 
-    wizardStep(session.session_id, session.session_token, step, selection, {
+    abortRef.current = wizardStep(session.session_id, session.session_token, step, selection, {
       onProgress: (data) => setPreviewMessage(data.message),
       onPreview: (data) => {
         setPreviews((prev) => ({ ...prev, [step]: data.image_url }));
@@ -77,26 +80,24 @@ export default function WizardContainer({ session, provider: _provider }: Props)
     });
   }, [session.session_id, session.session_token]);
 
-  // 옵션 변경 시 1.5초 디바운스로 자동 미리보기 (레이트 리밋 방지)
-  const pendingRef = useRef(false);
+  // 옵션 변경 시 1.5초 디바운스로 자동 미리보기
+  const lastSelectionRef = useRef<string>("");
   useEffect(() => {
     if (currentStep === "generate") return;
 
-    if (previewLoading) {
-      pendingRef.current = true;
-      return;
-    }
+    const selectionKey = JSON.stringify({ currentStep, ...getSelection() });
+    if (selectionKey === lastSelectionRef.current) return;
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      pendingRef.current = false;
+      lastSelectionRef.current = selectionKey;
       requestPreview(currentStep, getSelection());
-    }, pendingRef.current ? 500 : 1500);
+    }, 1500);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [style, proportion, detail, reference, currentStep, getSelection, requestPreview, previewLoading]);
+  }, [style, proportion, detail, reference, currentStep, getSelection, requestPreview]);
 
   const handleConfirmStep = () => {
     // 이미 미리보기가 있으면 바로 다음 단계로
@@ -113,7 +114,10 @@ export default function WizardContainer({ session, provider: _provider }: Props)
     wizardStep(session.session_id, session.session_token, currentStep, getSelection(), {
       onProgress: (data) => setPreviewMessage(data.message),
       onPreview: (data) => {
-        setPreviews((prev) => ({ ...prev, [currentStep]: data.image_url }));
+        const url = data.image_url.includes("?")
+          ? `${data.image_url}&_t=${Date.now()}`
+          : `${data.image_url}?_t=${Date.now()}`;
+        setPreviews((prev) => ({ ...prev, [currentStep]: url }));
         setPreviewLoading(false);
         if (idx < STEP_ORDER.length - 1) {
           setCurrentStep(STEP_ORDER[idx + 1]);
