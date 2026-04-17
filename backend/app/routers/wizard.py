@@ -131,6 +131,9 @@ async def wizard_start(
     tier: TierType = Form("free"),
     provider: str = Form("gemini"),
     analyzer: str = Form("gemini"),
+    accessory: str = Form("none"),
+    background: str = Form("white"),
+    time_of_day: str = Form("none"),
 ):
     """위자드 세션 시작 + 사진 분석."""
     # 만료된 세션 정리
@@ -173,6 +176,9 @@ async def wizard_start(
         "detail": {"eye_size": "big", "outline": "bold", "background": "white"},
         "reference": "none",
         "custom_prompt": "",
+        "accessory": accessory,
+        "scene_background": background,
+        "time_of_day": time_of_day,
         "emoji_count": get_tier_config(tier)["max_emotions"],
     }
 

@@ -98,7 +98,7 @@ export default function Home() {
     setError(null);
 
     try {
-      const session = await wizardStart(file, tier, provider);
+      const session = await wizardStart(file, tier, provider, accessory, background, timeOfDay);
       setWizardSession(session);
     } catch (err) {
       setError(err instanceof Error ? err.message : "위자드 시작 실패");

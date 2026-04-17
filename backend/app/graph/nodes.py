@@ -26,6 +26,9 @@ async def _generate_preview(state: WizardState) -> str:
         detail=state.get("detail"),
         reference=state.get("reference", "none"),
         custom_prompt=_truncate_custom_prompt(state),
+        accessory=state.get("accessory", "none"),
+        scene_background=state.get("scene_background", "white"),
+        time_of_day=state.get("time_of_day", "none"),
     )
     generate_fn = PROVIDERS[state.get("provider", "gemini")]
     return await generate_fn(prompt)
@@ -109,6 +112,9 @@ async def generate_node(state: WizardState) -> dict:
         detail=state.get("detail"),
         reference=state.get("reference", "none"),
         custom_prompt=_truncate_custom_prompt(state),
+        accessory=state.get("accessory", "none"),
+        scene_background=state.get("scene_background", "white"),
+        time_of_day=state.get("time_of_day", "none"),
     )
 
     emotions_to_generate = EMOTIONS[:emoji_count]

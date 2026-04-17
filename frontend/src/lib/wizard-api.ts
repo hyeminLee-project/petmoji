@@ -14,13 +14,19 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export async function wizardStart(
   file: File,
   tier: Tier,
-  provider: ImageProvider
+  provider: ImageProvider,
+  accessory: string = "none",
+  background: string = "white",
+  timeOfDay: string = "none",
 ): Promise<WizardSession> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("tier", tier);
   formData.append("provider", provider);
   formData.append("analyzer", "gemini");
+  formData.append("accessory", accessory);
+  formData.append("background", background);
+  formData.append("time_of_day", timeOfDay);
 
   const res = await fetch(`${API_BASE}/api/wizard/start`, {
     method: "POST",
