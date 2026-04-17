@@ -78,14 +78,20 @@ export default function WizardContainer({ session, provider: _provider }: Props)
   }, [session.session_id, session.session_token]);
 
   // 옵션 변경 시 1.5초 디바운스로 자동 미리보기 (레이트 리밋 방지)
+  const pendingRef = useRef(false);
   useEffect(() => {
     if (currentStep === "generate") return;
-    if (previewLoading) return;
+
+    if (previewLoading) {
+      pendingRef.current = true;
+      return;
+    }
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
+      pendingRef.current = false;
       requestPreview(currentStep, getSelection());
-    }, 1500);
+    }, pendingRef.current ? 500 : 1500);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
