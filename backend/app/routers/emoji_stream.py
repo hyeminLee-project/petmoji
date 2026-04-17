@@ -33,6 +33,9 @@ async def generate_emojis_stream(
     provider: str = Form("gemini"),
     analyzer: str = Form("gemini"),
     custom_prompt: str = Form(""),
+    accessory: str = Form("none"),
+    background: str = Form("white"),
+    time_of_day: str = Form("none"),
 ):
     """SSE 스트리밍으로 이모지 생성 진행 상황을 실시간 전송"""
     # 입력 검증
@@ -85,7 +88,9 @@ async def generate_emojis_stream(
 
         # Step 2: 이모지 생성
         generate_fn = PROVIDERS[provider]
-        base_prompt = _build_character_prompt(pet_features, style, custom_prompt)
+        base_prompt = _build_character_prompt(
+            pet_features, style, custom_prompt, accessory, background, time_of_day
+        )
         emotions_to_generate = EMOTIONS[:emoji_count]
         emojis = []
 
