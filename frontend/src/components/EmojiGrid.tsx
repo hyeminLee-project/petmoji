@@ -16,17 +16,21 @@ interface Props {
 }
 
 export default function EmojiGrid({ emojis }: Props) {
-  const handleDownload = (emoji: EmojiResult) => {
+  const handleDownload = async (emoji: EmojiResult) => {
+    const res = await fetch(emoji.image_url);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = emoji.image_url;
+    link.href = url;
     link.download = `petmoji-${emoji.emotion}.png`;
     link.click();
+    URL.revokeObjectURL(url);
   };
 
-  const handleDownloadAll = () => {
-    emojis.forEach((emoji, i) => {
-      setTimeout(() => handleDownload(emoji), i * 200);
-    });
+  const handleDownloadAll = async () => {
+    for (const emoji of emojis) {
+      await handleDownload(emoji);
+    }
   };
 
   return (
