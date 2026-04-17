@@ -1,6 +1,11 @@
 """확장 프롬프트 빌더 — 5 스타일, 3 비율, 세부 조정, 레퍼런스."""
 
-from app.services.generator import _sanitize_custom_prompt
+from app.services.generator import (
+    ACCESSORY_DESCRIPTIONS,
+    BACKGROUND_DESCRIPTIONS,
+    TIME_DESCRIPTIONS,
+    _sanitize_custom_prompt,
+)
 
 STYLE_DESCRIPTIONS = {
     "2d": "clean 2D vector art style, flat colors, bold outlines, like Kakao Friends or LINE stickers",
@@ -38,6 +43,9 @@ def build_wizard_prompt(
     detail: dict | None = None,
     reference: str = "none",
     custom_prompt: str = "",
+    accessory: str = "none",
+    scene_background: str = "white",
+    time_of_day: str = "none",
 ) -> str:
     """위자드 설정을 기반으로 캐릭터 프롬프트 생성."""
     detail = detail or DETAIL_DEFAULTS
@@ -77,6 +85,22 @@ The character should be centered, emoji-sized square composition."""
 
     if reference_desc:
         base += f"\nReference: {reference_desc}."
+
+    # 악세사리
+    acc_desc = ACCESSORY_DESCRIPTIONS.get(accessory, "")
+    if acc_desc:
+        base += f"\nAccessory: {acc_desc}."
+
+    # 장면 배경 (scene_background가 기본값이 아니면 detail.background 대신 사용)
+    if scene_background and scene_background != "white":
+        scene_bg_desc = BACKGROUND_DESCRIPTIONS.get(scene_background, "")
+        if scene_bg_desc:
+            base += f"\nScene: {scene_bg_desc}."
+
+    # 시간대
+    time_desc = TIME_DESCRIPTIONS.get(time_of_day, "")
+    if time_desc:
+        base += f"\nLighting: {time_desc}."
 
     sanitized = _sanitize_custom_prompt(custom_prompt)
     if sanitized:

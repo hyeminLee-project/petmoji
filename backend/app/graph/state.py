@@ -22,6 +22,11 @@ class WizardState(TypedDict, total=False):
     reference: str  # kakao, line, sanrio, popmart, none
     custom_prompt: str  # custom 티어 전용
 
+    # 장면 설정 (악세사리, 배경, 시간대)
+    accessory: str  # none, ribbon, bowtie, crown, ...
+    scene_background: str  # white, park, room, cafe, ...
+    time_of_day: str  # none, morning, afternoon, sunset, night
+
     # 단계 추적
     current_step: Literal["upload", "style", "proportion", "detail", "reference", "generate"]
 
