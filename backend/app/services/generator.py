@@ -6,6 +6,7 @@ from app.models.schemas import EmojiResult, PetFeatures
 logger = logging.getLogger(__name__)
 
 EMOTIONS = [
+    # 기본 8종
     ("happy", "smiling big with sparkly eyes, tail wagging"),
     ("sad", "teary eyes, droopy ears, looking down"),
     ("angry", "puffed cheeks, furrowed brows, tiny flames"),
@@ -14,6 +15,31 @@ EMOTIONS = [
     ("surprised", "wide open eyes and mouth, exclamation mark"),
     ("cool", "wearing tiny sunglasses, confident smirk"),
     ("celebrate", "party hat, confetti, jumping with joy"),
+    # 확장 24종 (카카오 이모티콘 기준)
+    ("thumbsup", "giving a thumbs up with a big grin, winking"),
+    ("thumbsdown", "thumbs down with a disappointed frown, shaking head"),
+    ("grateful", "bowing politely with hands together, thankful expression"),
+    ("sorry", "hands clasped apologetically, sweating nervously, bowing"),
+    ("fighting", "fist pump in the air, determined fierce eyes, fire aura"),
+    ("tired", "slouching exhausted, dark circles under eyes, wilting"),
+    ("hungry", "drooling with wide eyes, rubbing belly, fork and knife"),
+    ("eating", "happily munching food, cheeks full, crumbs flying"),
+    ("laughing", "rolling on floor laughing, tears of joy, holding belly"),
+    ("crying", "bawling with rivers of tears, mouth wide open sobbing"),
+    ("shy", "covering face with paws, blushing bright red, peeking"),
+    ("nervous", "trembling with sweat drops, biting lip, shaking"),
+    ("bored", "chin resting on hand, half-lidded eyes, yawning slightly"),
+    ("excited", "jumping up and down, sparkling eyes, arms raised"),
+    ("confused", "question marks floating, tilted head, spiral eyes"),
+    ("sick", "green face, thermometer in mouth, ice pack on head"),
+    ("hot", "fanning self, sweat drops flying, tongue out panting"),
+    ("cold", "shivering wrapped in blanket, blue lips, snowflakes"),
+    ("working", "typing on laptop intensely, focused eyes, coffee nearby"),
+    ("sleeping", "curled up sleeping peacefully, zzz bubbles, snoring"),
+    ("greeting", "waving hand enthusiastically, big smile, saying hi"),
+    ("bye", "waving goodbye with teary eyes, blowing a kiss"),
+    ("running", "running away frantically, dust cloud behind, scared"),
+    ("hugging", "arms wide open for a hug, warm smile, hearts floating"),
 ]
 
 

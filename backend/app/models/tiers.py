@@ -46,7 +46,7 @@ TIER_CONFIG = {
     },
     "premium": {
         "styles": ["2d", "3d", "watercolor", "pixel", "realistic"],
-        "max_emotions": 16,
+        "max_emotions": 32,
         "guided_wizard": True,
         "custom_prompt": False,
         "accessories": ACCESSORIES,
@@ -67,7 +67,7 @@ TIER_CONFIG = {
     },
     "custom": {
         "styles": ["2d", "3d", "watercolor", "pixel", "realistic"],
-        "max_emotions": 16,
+        "max_emotions": 32,
         "guided_wizard": True,
         "custom_prompt": True,
         "accessories": ACCESSORIES,
