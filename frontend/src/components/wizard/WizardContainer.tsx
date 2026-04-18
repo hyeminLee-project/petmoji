@@ -217,9 +217,9 @@ export default function WizardContainer({ session, provider: _provider }: Props)
         <LoadingSpinner
           step="generating"
           message={previewMessage}
-          progress={partialEmojis.length / 8}
+          progress={partialEmojis.length / ((session.tier_config as { max_emotions?: number }).max_emotions || 8)}
           currentEmoji={partialEmojis.length}
-          totalEmojis={8}
+          totalEmojis={(session.tier_config as { max_emotions?: number }).max_emotions || 8}
           partialEmojis={partialEmojis}
         />
       ) : (
