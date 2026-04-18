@@ -28,7 +28,9 @@ class WizardState(TypedDict, total=False):
     time_of_day: str  # none, morning, afternoon, sunset, night
 
     # 단계 추적
-    current_step: Literal["upload", "style", "proportion", "detail", "reference", "generate"]
+    current_step: Literal[
+        "upload", "style", "proportion", "detail", "reference", "scene", "generate"
+    ]
 
     # 미리보기 이미지 (단계별)
     previews: dict  # {"style": "data:image/png;base64,...", ...}

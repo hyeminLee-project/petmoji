@@ -11,6 +11,9 @@ import type {
   ImageProvider,
   EmojiResult,
   GenerateResponse,
+  Accessory,
+  Background,
+  TimeOfDay,
 } from "@/types/api";
 import { wizardStep, wizardBack, wizardGenerate } from "@/lib/wizard-api";
 import StepIndicator from "./StepIndicator";
@@ -18,6 +21,8 @@ import StyleStep from "./StyleStep";
 import ProportionStep from "./ProportionStep";
 import DetailStep from "./DetailStep";
 import ReferenceStep from "./ReferenceStep";
+import SceneStep from "./SceneStep";
+import type { SceneOptions } from "./SceneStep";
 import PreviewPanel from "./PreviewPanel";
 import EmojiGrid from "@/components/EmojiGrid";
 import FormatSelector from "@/components/FormatSelector";
@@ -28,7 +33,7 @@ interface Props {
   provider: ImageProvider;
 }
 
-const STEP_ORDER: WizardStep[] = ["style", "proportion", "detail", "reference", "generate"];
+const STEP_ORDER: WizardStep[] = ["style", "proportion", "detail", "reference", "scene", "generate"];
 
 export default function WizardContainer({ session, provider: _provider }: Props) {
   const [currentStep, setCurrentStep] = useState<WizardStep>("style");
@@ -40,6 +45,11 @@ export default function WizardContainer({ session, provider: _provider }: Props)
     background: "white",
   });
   const [reference, setReference] = useState<Reference>("none");
+  const [scene, setScene] = useState<SceneOptions>({
+    accessory: "none" as Accessory,
+    scene_background: "white" as Background,
+    time_of_day: "none" as TimeOfDay,
+  });
 
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -57,8 +67,9 @@ export default function WizardContainer({ session, provider: _provider }: Props)
     if (currentStep === "style") return { style };
     if (currentStep === "proportion") return { proportion };
     if (currentStep === "detail") return { detail };
+    if (currentStep === "scene") return { scene };
     return { reference };
-  }, [currentStep, style, proportion, detail, reference]);
+  }, [currentStep, style, proportion, detail, reference, scene]);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -97,7 +108,7 @@ export default function WizardContainer({ session, provider: _provider }: Props)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [style, proportion, detail, reference, currentStep, getSelection, requestPreview]);
+  }, [style, proportion, detail, reference, scene, currentStep, getSelection, requestPreview]);
 
   const handleConfirmStep = () => {
     // 이미 미리보기가 있으면 바로 다음 단계로
@@ -226,6 +237,9 @@ export default function WizardContainer({ session, provider: _provider }: Props)
             )}
             {currentStep === "reference" && (
               <ReferenceStep value={reference} onChange={setReference} />
+            )}
+            {currentStep === "scene" && (
+              <SceneStep value={scene} onChange={setScene} />
             )}
             {currentStep === "generate" && (
               <div className="text-center py-8">
