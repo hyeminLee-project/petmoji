@@ -17,6 +17,14 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.graph.callbacks import SSECallback
+from app.graph.nodes import (
+    detail_node,
+    generate_node,
+    proportion_node,
+    reference_node,
+    scene_node,
+    style_node,
+)
 from app.graph.wizard import get_app_wizard_graph
 from app.models.schemas import (
     WizardBackRequest,
@@ -131,9 +139,6 @@ async def wizard_start(
     tier: TierType = Form("free"),
     provider: str = Form("gemini"),
     analyzer: str = Form("gemini"),
-    accessory: str = Form("none"),
-    background: str = Form("white"),
-    time_of_day: str = Form("none"),
 ):
     """위자드 세션 시작 + 사진 분석."""
     # 만료된 세션 정리
@@ -176,9 +181,9 @@ async def wizard_start(
         "detail": {"eye_size": "big", "outline": "bold", "background": "white"},
         "reference": "none",
         "custom_prompt": "",
-        "accessory": accessory,
-        "scene_background": background,
-        "time_of_day": time_of_day,
+        "accessory": "none",
+        "scene_background": "white",
+        "time_of_day": "none",
         "emoji_count": get_tier_config(tier)["max_emotions"],
     }
 
@@ -231,9 +236,26 @@ async def wizard_step(
         update["detail"] = selection.get("detail", {})
     elif step == "reference":
         update["reference"] = selection.get("reference", "none")
+    elif step == "scene":
+        scene_sel = selection.get("scene", {})
+        update["accessory"] = scene_sel.get("accessory", "none")
+        update["scene_background"] = scene_sel.get("scene_background", "white")
+        update["time_of_day"] = scene_sel.get("time_of_day", "none")
 
-    # 상태 업데이트 후 해당 노드 실행
+    # 상태 업데이트
     await graph.aupdate_state(config, update)
+
+    # 노드 함수 매핑
+    node_fns = {
+        "style": style_node,
+        "proportion": proportion_node,
+        "detail": detail_node,
+        "reference": reference_node,
+        "scene": scene_node,
+    }
+    node_fn = node_fns.get(step)
+    if not node_fn:
+        raise HTTPException(status_code=400, detail=f"유효하지 않은 단계: {step}")
 
     callback = SSECallback()
 
@@ -248,9 +270,14 @@ async def wizard_step(
                 },
             )
 
-            result = await graph.ainvoke(None, config)
+            # 현재 상태를 가져와 노드 함수를 직접 실행
+            updated_state = await graph.aget_state(config)
+            node_result = await node_fn(updated_state.values)
 
-            preview_url = result.get("previews", {}).get(step, "")
+            # 결과를 그래프 상태에 반영
+            await graph.aupdate_state(config, node_result)
+
+            preview_url = node_result.get("previews", {}).get(step, "")
             await callback.emit(
                 "preview",
                 {
@@ -319,7 +346,7 @@ async def wizard_generate(
     if not state or not state.values:
         raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다")
 
-    # emoji_count 업데이트 후 generate 노드 실행
+    # emoji_count 업데이트
     await graph.aupdate_state(
         config,
         {"current_step": "generate", "emoji_count": body.emoji_count},
@@ -338,8 +365,14 @@ async def wizard_generate(
                 },
             )
 
-            result = await graph.ainvoke(None, config)
-            emojis = result.get("emojis", [])
+            # 현재 상태를 가져와 generate_node를 직접 실행
+            updated_state = await graph.aget_state(config)
+            node_result = await generate_node(updated_state.values)
+
+            # 결과를 그래프 상태에 반영
+            await graph.aupdate_state(config, node_result)
+
+            emojis = node_result.get("emojis", [])
 
             for i, emoji in enumerate(emojis):
                 await callback.emit(
@@ -355,7 +388,7 @@ async def wizard_generate(
             await callback.emit(
                 "complete",
                 {
-                    "pet_features": result.get("pet_features", {}),
+                    "pet_features": updated_state.values.get("pet_features", {}),
                     "emojis": emojis,
                 },
             )

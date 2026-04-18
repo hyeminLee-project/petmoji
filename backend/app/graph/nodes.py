@@ -100,6 +100,18 @@ async def reference_node(state: WizardState) -> dict:
     }
 
 
+async def scene_node(state: WizardState) -> dict:
+    """장면 설정 → 미리보기 생성."""
+    preview_url = await _generate_preview(state)
+    previews = state.get("previews", {})
+    previews["scene"] = preview_url
+
+    return {
+        "previews": previews,
+        "current_step": "generate",
+    }
+
+
 async def generate_node(state: WizardState) -> dict:
     """전체 이모지 세트 생성."""
     emoji_count = state.get("emoji_count", 8)

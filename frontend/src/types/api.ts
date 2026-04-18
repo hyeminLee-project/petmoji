@@ -33,7 +33,7 @@ export type EmojiStyle = "2d" | "3d" | "watercolor" | "pixel" | "realistic";
 export type Tier = "free" | "premium" | "custom";
 
 /** 위자드 단계 */
-export type WizardStep = "style" | "proportion" | "detail" | "reference" | "generate";
+export type WizardStep = "style" | "proportion" | "detail" | "reference" | "scene" | "generate";
 
 /** 비율 */
 export type Proportion = "chibi" | "normal" | "realistic";

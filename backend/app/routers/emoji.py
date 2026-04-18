@@ -5,7 +5,6 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.models.schemas import GenerateResponse
-from app.models.tiers import ACCESSORIES, BACKGROUNDS, TIME_OF_DAY
 from app.services.analyzer import analyze_pet_photo
 from app.services.generator import generate_emoji_set
 from app.utils.upload import MAX_PROMPT_LENGTH, read_and_validate_image
@@ -26,9 +25,6 @@ async def generate_emojis(
     provider: str = Form("gemini"),
     analyzer: str = Form("gemini"),
     custom_prompt: str = Form(""),
-    accessory: str = Form("none"),
-    background: str = Form("white"),
-    time_of_day: str = Form("none"),
 ):
     """Upload a pet photo and generate a personalized emoji set."""
     # 입력 검증
@@ -53,15 +49,6 @@ async def generate_emojis(
             status_code=400, detail=f"프롬프트는 {MAX_PROMPT_LENGTH}자 이하여야 합니다"
         )
 
-    if accessory not in ACCESSORIES:
-        raise HTTPException(status_code=400, detail=f"지원하지 않는 악세사리: {accessory}")
-
-    if background not in BACKGROUNDS:
-        raise HTTPException(status_code=400, detail=f"지원하지 않는 배경: {background}")
-
-    if time_of_day not in TIME_OF_DAY:
-        raise HTTPException(status_code=400, detail=f"지원하지 않는 시간대: {time_of_day}")
-
     image_bytes, content_type = await read_and_validate_image(file)
 
     try:
@@ -82,9 +69,6 @@ async def generate_emojis(
             emoji_count,
             provider,
             custom_prompt,
-            accessory,
-            background,
-            time_of_day,
         )
     except Exception as e:
         logger.exception("Emoji generation failed")

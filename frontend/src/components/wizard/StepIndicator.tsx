@@ -5,6 +5,7 @@ const STEPS: { key: WizardStep; label: string }[] = [
   { key: "proportion", label: "비율" },
   { key: "detail", label: "세부" },
   { key: "reference", label: "레퍼런스" },
+  { key: "scene", label: "장면" },
   { key: "generate", label: "생성" },
 ];
 
