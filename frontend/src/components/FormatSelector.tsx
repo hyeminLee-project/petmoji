@@ -14,6 +14,7 @@ const FORMATS: { id: ConvertFormat; icon: string; name: string; desc: string }[]
   { id: "sticker", icon: "✂️", name: "스티커 PNG", desc: "512x512 투명 배경" },
   { id: "gif", icon: "🎬", name: "움직이는 GIF", desc: "256x256 바운스" },
   { id: "wallpaper", icon: "📱", name: "폰 배경화면", desc: "1170x2532 패턴" },
+  { id: "kakao_submission", icon: "📋", name: "카카오 제안용", desc: "이모티콘+아이콘+공유 ZIP" },
 ];
 
 interface Props {
@@ -44,8 +45,12 @@ export default function FormatSelector({ emojis }: Props) {
   const handleDownload = (emoji: ConvertedEmoji) => {
     const link = document.createElement("a");
     link.href = emoji.image_url;
-    const ext = emoji.format === "gif" ? "gif" : "png";
-    link.download = `petmoji-${emoji.format}-${emoji.emotion}.${ext}`;
+    if (emoji.format === "kakao_submission") {
+      link.download = "petmoji-kakao-submission.zip";
+    } else {
+      const ext = emoji.format === "gif" ? "gif" : "png";
+      link.download = `petmoji-${emoji.format}-${emoji.emotion}.${ext}`;
+    }
     link.click();
   };
 

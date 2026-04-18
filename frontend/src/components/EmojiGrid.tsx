@@ -59,11 +59,11 @@ export default function EmojiGrid({ emojis }: Props) {
 
   return (
     <div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <div className={`grid gap-3 mb-6 ${emojis.length > 8 ? "grid-cols-4 sm:grid-cols-8" : "grid-cols-2 sm:grid-cols-4"}`}>
         {emojis.map((emoji) => (
           <div
             key={emoji.emotion}
-            className="group relative bg-gray-50 rounded-xl p-3 text-center"
+            className="group relative bg-gray-50 rounded-xl p-2 text-center"
           >
             <img
               src={emoji.image_url}
