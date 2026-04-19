@@ -11,6 +11,8 @@ htmlcov/
 node_modules/
 .next/
 out/
+next-env.d.ts
+tsconfig.tsbuildinfo
 
 # IDE (개인 설정만 제외, .vscode/는 프로젝트 설정으로 공유)
 .idea/
