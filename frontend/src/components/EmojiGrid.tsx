@@ -9,6 +9,30 @@ const EMOTION_LABELS: Record<string, string> = {
   surprised: "놀람 😲",
   cool: "멋짐 😎",
   celebrate: "축하 🎉",
+  thumbsup: "좋아 👍",
+  thumbsdown: "싫어 👎",
+  grateful: "고마워 🙏",
+  sorry: "미안 🙇",
+  fighting: "화이팅 💪",
+  tired: "지침 😩",
+  hungry: "배고파 🍽️",
+  eating: "냠냠 😋",
+  laughing: "빵터짐 🤣",
+  crying: "엉엉 😭",
+  shy: "부끄 🫣",
+  nervous: "떨림 😰",
+  bored: "심심 😐",
+  excited: "신남 🤩",
+  confused: "멘붕 😵",
+  sick: "아파 🤒",
+  hot: "더워 🥵",
+  cold: "추워 🥶",
+  working: "작업중 💻",
+  sleeping: "쿨쿨 😴",
+  greeting: "안녕 👋",
+  bye: "잘가 👋",
+  running: "도망 🏃",
+  hugging: "안아줘 🤗",
 };
 
 interface Props {
@@ -35,11 +59,11 @@ export default function EmojiGrid({ emojis }: Props) {
 
   return (
     <div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <div className={`grid gap-3 mb-6 ${emojis.length > 8 ? "grid-cols-4 sm:grid-cols-8" : "grid-cols-2 sm:grid-cols-4"}`}>
         {emojis.map((emoji) => (
           <div
             key={emoji.emotion}
-            className="group relative bg-gray-50 rounded-xl p-3 text-center"
+            className="group relative bg-gray-50 rounded-xl p-2 text-center"
           >
             <img
               src={emoji.image_url}

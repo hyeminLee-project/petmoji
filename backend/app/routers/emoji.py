@@ -41,8 +41,8 @@ async def generate_emojis(
             status_code=400, detail="analyzer는 'anthropic' 또는 'gemini'만 가능합니다"
         )
 
-    if not 1 <= emoji_count <= 16:
-        raise HTTPException(status_code=400, detail="emoji_count는 1~16 사이여야 합니다")
+    if not 1 <= emoji_count <= 42:
+        raise HTTPException(status_code=400, detail="emoji_count는 1~42 사이여야 합니다")
 
     if len(custom_prompt) > MAX_PROMPT_LENGTH:
         raise HTTPException(

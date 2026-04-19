@@ -82,7 +82,8 @@ export type ConvertFormat =
   | "imessage"
   | "sticker"
   | "gif"
-  | "wallpaper";
+  | "wallpaper"
+  | "kakao_submission";
 
 /** 변환된 이모지 */
 export interface ConvertedEmoji {

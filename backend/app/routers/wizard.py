@@ -19,12 +19,12 @@ from slowapi.util import get_remote_address
 from app.graph.callbacks import SSECallback
 from app.graph.nodes import (
     detail_node,
-    generate_node,
     proportion_node,
     reference_node,
     scene_node,
     style_node,
 )
+from app.graph.prompts import build_wizard_prompt
 from app.graph.wizard import get_app_wizard_graph
 from app.models.schemas import (
     WizardBackRequest,
@@ -34,6 +34,7 @@ from app.models.schemas import (
     WizardStepRequest,
 )
 from app.models.tiers import TierType, get_tier_config
+from app.services.generator import EMOTIONS, PROVIDERS
 from app.utils.upload import read_and_validate_image
 
 logger = logging.getLogger(__name__)
@@ -356,39 +357,62 @@ async def wizard_generate(
 
     async def run_and_stream():
         try:
-            await callback.emit(
-                "progress",
-                {
-                    "step": "generating",
-                    "message": "이모지 세트 생성을 시작합니다...",
-                    "progress": 0.05,
-                },
+            updated_state = await graph.aget_state(config)
+            state = updated_state.values
+            emoji_count = state.get("emoji_count", 8)
+            generate_fn = PROVIDERS[state.get("provider", "gemini")]
+
+            from app.graph.nodes import _truncate_custom_prompt
+
+            base_prompt = build_wizard_prompt(
+                pet_features=state.get("pet_features", {}),
+                style=state.get("style", "2d"),
+                proportion=state.get("proportion", "chibi"),
+                detail=state.get("detail"),
+                reference=state.get("reference", "none"),
+                custom_prompt=_truncate_custom_prompt(state),
+                accessory=state.get("accessory", "none"),
+                scene_background=state.get("scene_background", "white"),
+                time_of_day=state.get("time_of_day", "none"),
             )
 
-            # 현재 상태를 가져와 generate_node를 직접 실행
-            updated_state = await graph.aget_state(config)
-            node_result = await generate_node(updated_state.values)
+            emotions_to_generate = EMOTIONS[:emoji_count]
+            emojis = []
 
-            # 결과를 그래프 상태에 반영
-            await graph.aupdate_state(config, node_result)
+            for i, (emotion, description) in enumerate(emotions_to_generate):
+                await callback.emit(
+                    "progress",
+                    {
+                        "step": "generating",
+                        "message": f"{emotion} 생성 중... ({i + 1}/{len(emotions_to_generate)})",
+                        "progress": (i + 1) / len(emotions_to_generate),
+                    },
+                )
 
-            emojis = node_result.get("emojis", [])
+                prompt = f"""{base_prompt}
+Expression/pose: {emotion} - {description}.
+No text, no watermark, clean background."""
 
-            for i, emoji in enumerate(emojis):
+                image_url = await generate_fn(prompt)
+                emojis.append({"emotion": emotion, "image_url": image_url})
+
                 await callback.emit(
                     "emoji",
                     {
-                        "emotion": emoji["emotion"],
-                        "image_url": emoji["image_url"],
+                        "emotion": emotion,
+                        "image_url": image_url,
                         "index": i,
-                        "total": len(emojis),
+                        "total": len(emotions_to_generate),
                     },
                 )
+
+            # 결과를 그래프 상태에 반영
+            await graph.aupdate_state(config, {"emojis": emojis})
 
             await callback.emit(
                 "complete",
                 {
-                    "pet_features": updated_state.values.get("pet_features", {}),
+                    "pet_features": state.get("pet_features", {}),
                     "emojis": emojis,
                 },
             )

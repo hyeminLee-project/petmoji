@@ -75,7 +75,7 @@ async def test_wizard_start_premium(client: AsyncClient, fake_jpeg: io.BytesIO):
     assert res.status_code == 200
     data = res.json()
     assert data["tier_config"]["guided_wizard"] is True
-    assert data["tier_config"]["max_emotions"] == 16
+    assert data["tier_config"]["max_emotions"] == 32
 
 
 async def test_wizard_start_invalid_file(client: AsyncClient):

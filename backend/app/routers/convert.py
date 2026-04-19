@@ -18,6 +18,7 @@ MAX_IMAGE_URL_LENGTH = 14 * 1024 * 1024
 # 포맷별 최대 이모지 개수
 FORMAT_MAX_COUNT = {
     "kakao": 32,
+    "kakao_submission": 42,
     "kakao_animated": 24,
     "kakao_large_square": 16,
     "kakao_large_wide": 16,

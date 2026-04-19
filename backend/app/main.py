@@ -62,7 +62,9 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     )
 
 
-ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001").split(
+    ","
+)
 
 app.add_middleware(
     CORSMiddleware,
