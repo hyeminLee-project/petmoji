@@ -1,7 +1,10 @@
 import base64
 import logging
 
+from app.converters.base import decode_image, encode_image
 from app.models.schemas import EmojiResult, PetFeatures
+from app.services.caption import generate_captions
+from app.services.overlay import overlay_caption
 
 logger = logging.getLogger(__name__)
 
@@ -215,6 +218,7 @@ async def generate_emoji_set(
     accessory: str = "none",
     background: str = "white",
     time_of_day: str = "none",
+    add_captions: bool = True,
 ) -> list[EmojiResult]:
     """Generate a set of emoji images using the selected AI provider."""
     if provider not in PROVIDERS:
@@ -233,6 +237,12 @@ async def generate_emoji_set(
     has_scene_bg = background not in ("white", "transparent", "gradient")
 
     emotions_to_generate = EMOTIONS[:emoji_count]
+
+    # 캡션 일괄 생성
+    captions: dict[str, str] = {}
+    if add_captions:
+        captions = await generate_captions(emotions_to_generate, features, provider)
+
     results: list[EmojiResult] = []
 
     for emotion, description in emotions_to_generate:
@@ -246,6 +256,13 @@ Expression/pose: {emotion} - {description}.
 
         logger.info("Generating %s emoji with %s", emotion, provider)
         image_url = await generate_fn(prompt)
+
+        # 캡션 오버레이
+        if add_captions and emotion in captions and captions[emotion]:
+            img = decode_image(image_url)
+            img = overlay_caption(img, captions[emotion])
+            image_url = encode_image(img)
+
         results.append(EmojiResult(emotion=emotion, image_url=image_url))
 
     return results

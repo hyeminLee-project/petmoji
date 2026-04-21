@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from app.converters.base import decode_image, encode_image
 from app.graph.callbacks import SSECallback
 from app.graph.nodes import (
     detail_node,
@@ -34,7 +35,9 @@ from app.models.schemas import (
     WizardStepRequest,
 )
 from app.models.tiers import TierType, get_tier_config
+from app.services.caption import generate_captions
 from app.services.generator import EMOTIONS, PROVIDERS
+from app.services.overlay import overlay_caption
 from app.utils.upload import read_and_validate_image
 
 logger = logging.getLogger(__name__)
@@ -377,6 +380,30 @@ async def wizard_generate(
             )
 
             emotions_to_generate = EMOTIONS[:emoji_count]
+
+            # 캡션 생성
+            captions: dict[str, str] = {}
+            pet_features_obj = state.get("pet_features")
+            if pet_features_obj:
+                await callback.emit(
+                    "progress",
+                    {
+                        "step": "captioning",
+                        "message": "캐릭터 대사를 만들고 있어요...",
+                        "progress": 0.05,
+                    },
+                )
+                try:
+                    from app.models.schemas import PetFeatures
+
+                    if isinstance(pet_features_obj, dict):
+                        pet_features_obj = PetFeatures(**pet_features_obj)
+                    captions = await generate_captions(
+                        emotions_to_generate, pet_features_obj, state.get("provider", "gemini")
+                    )
+                except Exception:
+                    logger.warning("Caption generation failed in wizard, continuing without")
+
             emojis = []
 
             for i, (emotion, description) in enumerate(emotions_to_generate):
@@ -394,6 +421,13 @@ Expression/pose: {emotion} - {description}.
 No text, no watermark, clean background."""
 
                 image_url = await generate_fn(prompt)
+
+                # 캡션 오버레이
+                if captions and emotion in captions and captions[emotion]:
+                    img = decode_image(image_url)
+                    img = overlay_caption(img, captions[emotion])
+                    image_url = encode_image(img)
+
                 emojis.append({"emotion": emotion, "image_url": image_url})
 
                 await callback.emit(

@@ -8,8 +8,11 @@ from fastapi.responses import StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from app.converters.base import decode_image, encode_image
 from app.services.analyzer import analyze_pet_photo
+from app.services.caption import generate_captions
 from app.services.generator import EMOTIONS, PROVIDERS, _build_character_prompt
+from app.services.overlay import overlay_caption
 from app.utils.upload import MAX_PROMPT_LENGTH, read_and_validate_image
 
 logger = logging.getLogger(__name__)
@@ -36,6 +39,7 @@ async def generate_emojis_stream(
     accessory: str = Form("none"),
     background: str = Form("white"),
     time_of_day: str = Form("none"),
+    add_captions: bool = Form(True),
 ):
     """SSE 스트리밍으로 이모지 생성 진행 상황을 실시간 전송"""
     # 입력 검증
@@ -86,7 +90,23 @@ async def generate_emojis_stream(
             },
         )
 
-        # Step 2: 이모지 생성
+        # Step 2: 캡션 생성
+        captions: dict[str, str] = {}
+        if add_captions:
+            yield _sse_event(
+                "progress",
+                {
+                    "step": "captioning",
+                    "message": "캐릭터 대사를 만들고 있어요...",
+                    "progress": 0.08,
+                },
+            )
+            try:
+                captions = await generate_captions(EMOTIONS[:emoji_count], pet_features, provider)
+            except Exception:
+                logger.warning("Caption generation failed, continuing without captions")
+
+        # Step 3: 이모지 생성
         generate_fn = PROVIDERS[provider]
         base_prompt = _build_character_prompt(
             pet_features, style, custom_prompt, accessory, background, time_of_day
@@ -117,6 +137,12 @@ No text, no watermark, clean background."""
                 logger.exception("Emoji generation failed for %s", emotion)
                 yield _sse_event("error", {"message": f"이모지 생성 실패: {emotion}"})
                 return
+
+            # 캡션 오버레이
+            if captions and emotion in captions and captions[emotion]:
+                img = decode_image(image_url)
+                img = overlay_caption(img, captions[emotion])
+                image_url = encode_image(img)
 
             emoji_data = {"emotion": emotion, "image_url": image_url}
             emojis.append(emoji_data)
