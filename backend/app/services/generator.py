@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import logging
 
@@ -7,6 +8,10 @@ from app.services.caption import generate_captions
 from app.services.overlay import overlay_caption
 
 logger = logging.getLogger(__name__)
+
+# AI API 동시 요청 제한 (rate limit 보호)
+MAX_CONCURRENT_GENERATIONS = 5
+_generation_semaphore = asyncio.Semaphore(MAX_CONCURRENT_GENERATIONS)
 
 EMOTIONS = [
     # 기본 8종
@@ -243,9 +248,7 @@ async def generate_emoji_set(
     if add_captions:
         captions = await generate_captions(emotions_to_generate, features, provider)
 
-    results: list[EmojiResult] = []
-
-    for emotion, description in emotions_to_generate:
+    async def _generate_one(emotion: str, description: str) -> EmojiResult:
         suffix = "No text, no watermark."
         if not has_scene_bg:
             suffix += " Clean background."
@@ -255,7 +258,8 @@ Expression/pose: {emotion} - {description}.
 {suffix}"""
 
         logger.info("Generating %s emoji with %s", emotion, provider)
-        image_url = await generate_fn(prompt)
+        async with _generation_semaphore:
+            image_url = await generate_fn(prompt)
 
         # 캡션 오버레이
         if add_captions and emotion in captions and captions[emotion]:
@@ -263,6 +267,10 @@ Expression/pose: {emotion} - {description}.
             img = overlay_caption(img, captions[emotion])
             image_url = encode_image(img)
 
-        results.append(EmojiResult(emotion=emotion, image_url=image_url))
+        return EmojiResult(emotion=emotion, image_url=image_url)
 
-    return results
+    results = await asyncio.gather(
+        *[_generate_one(emotion, desc) for emotion, desc in emotions_to_generate]
+    )
+
+    return list(results)

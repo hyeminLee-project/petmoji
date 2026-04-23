@@ -1,5 +1,6 @@
 """SSE 기반 이모지 생성 스트리밍 엔드포인트"""
 
+import asyncio
 import json
 import logging
 
@@ -11,7 +12,12 @@ from slowapi.util import get_remote_address
 from app.converters.base import decode_image, encode_image
 from app.services.analyzer import analyze_pet_photo
 from app.services.caption import generate_captions
-from app.services.generator import EMOTIONS, PROVIDERS, _build_character_prompt
+from app.services.generator import (
+    EMOTIONS,
+    PROVIDERS,
+    _build_character_prompt,
+    _generation_semaphore,
+)
 from app.services.overlay import overlay_caption
 from app.utils.upload import MAX_PROMPT_LENGTH, read_and_validate_image
 
@@ -106,7 +112,7 @@ async def generate_emojis_stream(
             except Exception:
                 logger.warning("Caption generation failed, continuing without captions")
 
-        # Step 3: 이모지 생성
+        # Step 3: 이모지 병렬 생성
         generate_fn = PROVIDERS[provider]
         base_prompt = _build_character_prompt(
             pet_features, style, custom_prompt, accessory, background, time_of_day
@@ -114,48 +120,72 @@ async def generate_emojis_stream(
         emotions_to_generate = EMOTIONS[:emoji_count]
         emojis = []
 
-        for i, (emotion, description) in enumerate(emotions_to_generate):
-            progress = 0.1 + (0.9 * (i / emoji_count))
-            yield _sse_event(
-                "progress",
-                {
-                    "step": "generating",
-                    "message": f"이모지 생성 중 ({i + 1}/{emoji_count})...",
-                    "progress": round(progress, 2),
-                    "current": i + 1,
-                    "total": emoji_count,
-                },
-            )
+        yield _sse_event(
+            "progress",
+            {
+                "step": "generating",
+                "message": f"이모지 생성 중 (0/{emoji_count})...",
+                "progress": 0.1,
+                "current": 0,
+                "total": emoji_count,
+            },
+        )
 
+        async def _gen(idx: int, emotion: str, description: str) -> tuple[int, str, str]:
             prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
 No text, no watermark, clean background."""
-
-            try:
+            async with _generation_semaphore:
                 image_url = await generate_fn(prompt)
-            except Exception:
-                logger.exception("Emoji generation failed for %s", emotion)
-                yield _sse_event("error", {"message": f"이모지 생성 실패: {emotion}"})
-                return
-
             # 캡션 오버레이
             if captions and emotion in captions and captions[emotion]:
                 img = decode_image(image_url)
                 img = overlay_caption(img, captions[emotion])
                 image_url = encode_image(img)
+            return idx, emotion, image_url
+
+        tasks = [
+            asyncio.ensure_future(_gen(i, emotion, desc))
+            for i, (emotion, desc) in enumerate(emotions_to_generate)
+        ]
+
+        for done_count, coro in enumerate(asyncio.as_completed(tasks), 1):
+            try:
+                idx, emotion, image_url = await coro
+            except Exception:
+                logger.exception("Emoji generation failed")
+                yield _sse_event("error", {"message": "이모지 생성 실패"})
+                for t in tasks:
+                    t.cancel()
+                return
 
             emoji_data = {"emotion": emotion, "image_url": image_url}
             emojis.append(emoji_data)
+
+            progress = 0.1 + (0.9 * (done_count / emoji_count))
+            yield _sse_event(
+                "progress",
+                {
+                    "step": "generating",
+                    "message": f"이모지 생성 중 ({done_count}/{emoji_count})...",
+                    "progress": round(progress, 2),
+                    "current": done_count,
+                    "total": emoji_count,
+                },
+            )
 
             yield _sse_event(
                 "emoji",
                 {
                     "emotion": emotion,
                     "image_url": image_url,
-                    "index": i,
+                    "index": idx,
                     "total": emoji_count,
                 },
             )
+
+        # 원래 순서로 정렬
+        emojis.sort(key=lambda e: [em for em, _ in emotions_to_generate].index(e["emotion"]))
 
         # 완료
         yield _sse_event(

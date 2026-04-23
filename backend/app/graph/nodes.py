@@ -1,11 +1,12 @@
 """LangGraph 위자드 노드 — 각 단계의 처리 로직."""
 
+import asyncio
 import logging
 
 from app.graph.prompts import build_preview_prompt, build_wizard_prompt
 from app.graph.state import WizardState
 from app.services.analyzer import analyze_pet_photo
-from app.services.generator import EMOTIONS, PROVIDERS
+from app.services.generator import EMOTIONS, PROVIDERS, _generation_semaphore
 from app.utils.upload import MAX_PROMPT_LENGTH
 
 logger = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ async def scene_node(state: WizardState) -> dict:
 
 
 async def generate_node(state: WizardState) -> dict:
-    """전체 이모지 세트 생성."""
+    """전체 이모지 세트 생성 (병렬)."""
     emoji_count = state.get("emoji_count", 8)
     generate_fn = PROVIDERS[state.get("provider", "gemini")]
 
@@ -130,21 +131,22 @@ async def generate_node(state: WizardState) -> dict:
     )
 
     emotions_to_generate = EMOTIONS[:emoji_count]
-    emojis = []
 
-    for emotion, description in emotions_to_generate:
+    async def _gen(emotion: str, description: str) -> dict:
         prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
 No text, no watermark, clean background."""
+        async with _generation_semaphore:
+            image_url = await generate_fn(prompt)
+        return {"emotion": emotion, "image_url": image_url}
 
-        image_url = await generate_fn(prompt)
-        emojis.append({"emotion": emotion, "image_url": image_url})
+    emojis = await asyncio.gather(*[_gen(e, d) for e, d in emotions_to_generate])
 
-    return {"emojis": emojis}
+    return {"emojis": list(emojis)}
 
 
 async def free_generate_node(state: WizardState) -> dict:
-    """무료 티어: 분석 후 바로 4개 이모지 생성."""
+    """무료 티어: 분석 후 바로 4개 이모지 생성 (병렬)."""
     emoji_count = min(state.get("emoji_count", 4), 4)
     generate_fn = PROVIDERS[state.get("provider", "gemini")]
 
@@ -155,14 +157,15 @@ async def free_generate_node(state: WizardState) -> dict:
     )
 
     emotions_to_generate = EMOTIONS[:emoji_count]
-    emojis = []
 
-    for emotion, description in emotions_to_generate:
+    async def _gen(emotion: str, description: str) -> dict:
         prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
 No text, no watermark, clean background."""
+        async with _generation_semaphore:
+            image_url = await generate_fn(prompt)
+        return {"emotion": emotion, "image_url": image_url}
 
-        image_url = await generate_fn(prompt)
-        emojis.append({"emotion": emotion, "image_url": image_url})
+    emojis = await asyncio.gather(*[_gen(e, d) for e, d in emotions_to_generate])
 
-    return {"emojis": emojis}
+    return {"emojis": list(emojis)}
