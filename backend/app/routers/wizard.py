@@ -36,7 +36,7 @@ from app.models.schemas import (
 )
 from app.models.tiers import TierType, get_tier_config
 from app.services.caption import generate_captions
-from app.services.generator import EMOTIONS, PROVIDERS
+from app.services.generator import EMOTIONS, PROVIDERS, _generation_semaphore
 from app.services.overlay import overlay_caption
 from app.utils.upload import read_and_validate_image
 
@@ -405,40 +405,60 @@ async def wizard_generate(
                     logger.warning("Caption generation failed in wizard, continuing without")
 
             emojis = []
+            total = len(emotions_to_generate)
 
-            for i, (emotion, description) in enumerate(emotions_to_generate):
-                await callback.emit(
-                    "progress",
-                    {
-                        "step": "generating",
-                        "message": f"{emotion} 생성 중... ({i + 1}/{len(emotions_to_generate)})",
-                        "progress": (i + 1) / len(emotions_to_generate),
-                    },
-                )
-
+            async def _gen(idx: int, emotion: str, description: str) -> tuple[int, str, str]:
                 prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
 No text, no watermark, clean background."""
-
-                image_url = await generate_fn(prompt)
-
+                async with _generation_semaphore:
+                    image_url = await generate_fn(prompt)
                 # 캡션 오버레이
                 if captions and emotion in captions and captions[emotion]:
                     img = decode_image(image_url)
                     img = overlay_caption(img, captions[emotion])
                     image_url = encode_image(img)
+                return idx, emotion, image_url
+
+            tasks = [
+                asyncio.ensure_future(_gen(i, emotion, desc))
+                for i, (emotion, desc) in enumerate(emotions_to_generate)
+            ]
+
+            for done_count, coro in enumerate(asyncio.as_completed(tasks), 1):
+                try:
+                    idx, emotion, image_url = await coro
+                except Exception:
+                    logger.exception("Wizard emoji generation failed")
+                    await callback.emit("error", {"message": "이모지 생성 중 오류가 발생했습니다"})
+                    for t in tasks:
+                        t.cancel()
+                    await callback.done()
+                    return
 
                 emojis.append({"emotion": emotion, "image_url": image_url})
+
+                await callback.emit(
+                    "progress",
+                    {
+                        "step": "generating",
+                        "message": f"이모지 생성 중... ({done_count}/{total})",
+                        "progress": done_count / total,
+                    },
+                )
 
                 await callback.emit(
                     "emoji",
                     {
                         "emotion": emotion,
                         "image_url": image_url,
-                        "index": i,
-                        "total": len(emotions_to_generate),
+                        "index": idx,
+                        "total": total,
                     },
                 )
+
+            # 원래 순서로 정렬
+            emojis.sort(key=lambda e: [em for em, _ in emotions_to_generate].index(e["emotion"]))
 
             # 결과를 그래프 상태에 반영
             await graph.aupdate_state(config, {"emojis": emojis})
