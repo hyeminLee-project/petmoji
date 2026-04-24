@@ -19,6 +19,15 @@ export default function LoadingSpinner({
 }: Props) {
   const percentage = Math.round(progress * 100);
 
+  // index 기반 슬롯 배열 생성 (병렬 생성 시 순서 무관하게 올바른 위치에 배치)
+  const slots: (EmojiResult | null)[] = totalEmojis
+    ? Array.from({ length: totalEmojis }, (_, i) => {
+        return partialEmojis.find((e) => e.index === i) ?? null;
+      })
+    : partialEmojis.map((e) => e);
+
+  const hasAnyEmoji = partialEmojis.length > 0;
+
   return (
     <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
       {/* 진행률 바 */}
@@ -34,6 +43,7 @@ export default function LoadingSpinner({
         <div className="text-4xl mb-3">
           {step === "analyzing" && "🔍"}
           {step === "analyzed" && "✅"}
+          {step === "captioning" && "💬"}
           {step === "generating" && "🎨"}
           {!step && "🎨"}
         </div>
@@ -47,39 +57,36 @@ export default function LoadingSpinner({
         </p>
       </div>
 
-      {/* 실시간 이모지 미리보기 */}
-      {partialEmojis.length > 0 && (
+      {/* 실시간 이모지 미리보기 (index 기반 슬롯) */}
+      {hasAnyEmoji && (
         <div className="grid grid-cols-4 gap-3 mt-4">
-          {partialEmojis.map((emoji) => (
-            <div
-              key={emoji.emotion}
-              className="bg-gray-50 rounded-lg p-2 text-center animate-fade-in"
-            >
-              <img
-                src={emoji.image_url}
-                alt={emoji.emotion}
-                className="w-full aspect-square object-cover rounded-lg mb-1"
-              />
-              <p className="text-xs text-gray-500">{emoji.emotion}</p>
-            </div>
-          ))}
-          {/* 아직 생성 안 된 슬롯 */}
-          {totalEmojis &&
-            Array.from({ length: totalEmojis - partialEmojis.length }).map(
-              (_, i) => (
-                <div
-                  key={`placeholder-${i}`}
-                  className="bg-gray-50 rounded-lg p-2 flex items-center justify-center aspect-square animate-pulse"
-                >
-                  <span className="text-2xl text-gray-300">?</span>
-                </div>
-              )
-            )}
+          {slots.map((emoji, i) =>
+            emoji ? (
+              <div
+                key={`emoji-${i}`}
+                className="bg-gray-50 rounded-lg p-2 text-center animate-fade-in"
+              >
+                <img
+                  src={emoji.image_url}
+                  alt={emoji.emotion}
+                  className="w-full aspect-square object-cover rounded-lg mb-1"
+                />
+                <p className="text-xs text-gray-500">{emoji.emotion}</p>
+              </div>
+            ) : (
+              <div
+                key={`placeholder-${i}`}
+                className="bg-gray-50 rounded-lg p-2 flex items-center justify-center aspect-square animate-pulse"
+              >
+                <span className="text-2xl text-gray-300">?</span>
+              </div>
+            )
+          )}
         </div>
       )}
 
       {/* 동물 이모지 애니메이션 (분석 단계) */}
-      {!partialEmojis.length && (
+      {!hasAnyEmoji && (
         <div className="flex justify-center gap-2 mt-4">
           {["🐶", "🐱", "🐰", "🐹"].map((emoji, i) => (
             <span
