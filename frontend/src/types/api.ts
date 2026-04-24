@@ -18,6 +18,7 @@ export interface PetFeatures {
 export interface EmojiResult {
   emotion: string;
   image_url: string;
+  index?: number;
 }
 
 /** 이모지 생성 API 응답 */

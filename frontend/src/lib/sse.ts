@@ -3,7 +3,7 @@ import type { EmojiStyle, ImageProvider, PetFeatures, EmojiResult } from "@/type
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export interface ProgressEvent {
-  step: "analyzing" | "analyzed" | "generating" | "complete";
+  step: "analyzing" | "analyzed" | "captioning" | "generating" | "complete";
   message: string;
   progress: number;
   current?: number;
