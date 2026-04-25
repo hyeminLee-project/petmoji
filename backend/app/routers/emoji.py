@@ -5,6 +5,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.models.schemas import GenerateResponse
+from app.models.tiers import TIER_CONFIG, TierType
 from app.services.analyzer import analyze_pet_photo
 from app.services.generator import generate_emoji_set
 from app.utils.upload import MAX_PROMPT_LENGTH, read_and_validate_image
@@ -21,10 +22,11 @@ async def generate_emojis(
     request: Request,
     file: UploadFile = File(...),
     style: str = Form("2d"),
-    emoji_count: int = Form(8),
+    emoji_count: int = Form(4),
     provider: str = Form("gemini"),
     analyzer: str = Form("gemini"),
     custom_prompt: str = Form(""),
+    tier: TierType = Form("free"),
 ):
     """Upload a pet photo and generate a personalized emoji set."""
     # 입력 검증
@@ -41,8 +43,12 @@ async def generate_emojis(
             status_code=400, detail="analyzer는 'anthropic' 또는 'gemini'만 가능합니다"
         )
 
-    if not 1 <= emoji_count <= 42:
-        raise HTTPException(status_code=400, detail="emoji_count는 1~42 사이여야 합니다")
+    max_emotions = TIER_CONFIG[tier]["max_emotions"]
+    if not 1 <= emoji_count <= max_emotions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"emoji_count는 1~{max_emotions} 사이여야 합니다 ({tier} 티어)",
+        )
 
     if len(custom_prompt) > MAX_PROMPT_LENGTH:
         raise HTTPException(

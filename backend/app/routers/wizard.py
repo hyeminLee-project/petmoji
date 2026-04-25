@@ -350,6 +350,17 @@ async def wizard_generate(
     if not state or not state.values:
         raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다")
 
+    # tier 기반 emoji_count 검증
+    current_state = state.values
+    tier = current_state.get("tier", "free")
+    tier_config = get_tier_config(tier)
+    max_emotions = tier_config["max_emotions"]
+    if not 1 <= body.emoji_count <= max_emotions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"emoji_count는 1~{max_emotions} 사이여야 합니다 ({tier} 티어)",
+        )
+
     # emoji_count 업데이트
     await graph.aupdate_state(
         config,

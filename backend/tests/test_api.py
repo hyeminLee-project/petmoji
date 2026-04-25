@@ -24,7 +24,7 @@ async def test_generate_invalid_style(client: AsyncClient):
     res = await client.post(
         "/api/generate",
         files={"file": ("test.jpg", fake_image, "image/jpeg")},
-        data={"style": "invalid", "emoji_count": "8"},
+        data={"style": "invalid", "emoji_count": "4"},
     )
     assert res.status_code == 400
 
