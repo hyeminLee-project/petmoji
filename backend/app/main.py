@@ -14,7 +14,7 @@ from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.graph.wizard import shutdown_wizard_graph
-from app.routers import convert, emoji, emoji_stream, wizard
+from app.routers import agent, convert, emoji, emoji_stream, wizard
 from app.routers.wizard import start_cleanup_task, stop_cleanup_task
 
 
@@ -78,6 +78,7 @@ app.include_router(emoji.router, prefix="/api")
 app.include_router(emoji_stream.router, prefix="/api")
 app.include_router(convert.router, prefix="/api")
 app.include_router(wizard.router, prefix="/api")
+app.include_router(agent.router, prefix="/api")
 
 
 @app.get("/health")
