@@ -22,7 +22,7 @@ async def generate_emojis(
     request: Request,
     file: UploadFile = File(...),
     style: str = Form("2d"),
-    emoji_count: int = Form(8),
+    emoji_count: int = Form(4),
     provider: str = Form("gemini"),
     analyzer: str = Form("gemini"),
     custom_prompt: str = Form(""),

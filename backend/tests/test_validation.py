@@ -40,7 +40,7 @@ async def test_prompt_at_limit(client: AsyncClient, fake_jpeg: io.BytesIO):
     res = await client.post(
         "/api/generate",
         files={"file": ("test.jpg", fake_jpeg, "image/jpeg")},
-        data={"style": "2d", "custom_prompt": "x" * 500},
+        data={"style": "2d", "custom_prompt": "x" * 500, "emoji_count": "4"},
     )
     assert res.status_code != 400
 
