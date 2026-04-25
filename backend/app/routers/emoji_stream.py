@@ -10,6 +10,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.converters.base import decode_image, encode_image
+from app.models.tiers import TIER_CONFIG, TierType
 from app.services.analyzer import analyze_pet_photo
 from app.services.caption import generate_captions
 from app.services.generator import (
@@ -46,6 +47,7 @@ async def generate_emojis_stream(
     background: str = Form("white"),
     time_of_day: str = Form("none"),
     add_captions: bool = Form(True),
+    tier: TierType = Form("free"),
 ):
     """SSE 스트리밍으로 이모지 생성 진행 상황을 실시간 전송"""
     # 입력 검증
@@ -59,8 +61,12 @@ async def generate_emojis_stream(
         raise HTTPException(
             status_code=400, detail="analyzer는 'anthropic' 또는 'gemini'만 가능합니다"
         )
-    if not 1 <= emoji_count <= 16:
-        raise HTTPException(status_code=400, detail="emoji_count는 1~16 사이여야 합니다")
+    max_emotions = TIER_CONFIG[tier]["max_emotions"]
+    if not 1 <= emoji_count <= max_emotions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"emoji_count는 1~{max_emotions} 사이여야 합니다 ({tier} 티어)",
+        )
     if len(custom_prompt) > MAX_PROMPT_LENGTH:
         raise HTTPException(
             status_code=400, detail=f"프롬프트는 {MAX_PROMPT_LENGTH}자 이하여야 합니다"

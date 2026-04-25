@@ -165,10 +165,10 @@ The character should be chibi-proportioned (big head, small body), centered, emo
 
 async def _generate_with_openai(prompt: str) -> str:
     """Generate image using GPT-4o (OpenAI)."""
-    from openai import OpenAI
+    from openai import AsyncOpenAI
 
-    client = OpenAI()
-    response = client.images.generate(
+    client = AsyncOpenAI()
+    response = await client.images.generate(
         model="gpt-image-1",
         prompt=prompt,
         n=1,
