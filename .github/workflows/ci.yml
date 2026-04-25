@@ -63,7 +63,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r backend/requirements.txt
-      - run: pip-audit
+      - run: pip-audit --ignore-vuln CVE-2026-3219  # pip 26.0.1 자체 CVE, 수정 버전 미출시
 
   audit-frontend:
     runs-on: ubuntu-latest
