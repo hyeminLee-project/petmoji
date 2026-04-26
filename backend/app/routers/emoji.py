@@ -27,6 +27,7 @@ async def generate_emojis(
     analyzer: str = Form("gemini"),
     custom_prompt: str = Form(""),
     tier: TierType = Form("free"),
+    enhance_with_hermes: bool = Form(False),
 ):
     """Upload a pet photo and generate a personalized emoji set."""
     # 입력 검증
@@ -75,6 +76,7 @@ async def generate_emojis(
             emoji_count,
             provider,
             custom_prompt,
+            enhance_with_hermes=enhance_with_hermes,
         )
     except Exception as e:
         logger.exception("Emoji generation failed")

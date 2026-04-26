@@ -208,6 +208,38 @@ async def _generate_with_gemini(prompt: str) -> str:
     return f"data:image/png;base64,{b64}"
 
 
+async def _enhance_prompt_with_hermes(prompt: str) -> str:
+    """Hermes 로컬 모델로 이미지 프롬프트 최적화."""
+    import httpx
+
+    system = """You are an expert image prompt engineer.
+Rewrite the given prompt to be more vivid and effective for AI image generation.
+Keep the same subject, style, and composition. Enhance descriptive details.
+Reply with ONLY the improved prompt, nothing else."""
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                "http://localhost:11434/api/chat",
+                json={
+                    "model": "nous-hermes2",
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "stream": False,
+                    "options": {"temperature": 0.7},
+                },
+            )
+            response.raise_for_status()
+            enhanced = response.json()["message"]["content"].strip()
+            logger.info("Prompt enhanced by Hermes (%d → %d chars)", len(prompt), len(enhanced))
+            return enhanced
+    except Exception:
+        logger.warning("Hermes prompt enhancement failed, using original")
+        return prompt
+
+
 PROVIDERS = {
     "openai": _generate_with_openai,
     "gemini": _generate_with_gemini,
@@ -224,6 +256,7 @@ async def generate_emoji_set(
     background: str = "white",
     time_of_day: str = "none",
     add_captions: bool = True,
+    enhance_with_hermes: bool = False,
 ) -> list[EmojiResult]:
     """Generate a set of emoji images using the selected AI provider."""
     if provider not in PROVIDERS:
@@ -256,6 +289,9 @@ async def generate_emoji_set(
         prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
 {suffix}"""
+
+        if enhance_with_hermes:
+            prompt = await _enhance_prompt_with_hermes(prompt)
 
         logger.info("Generating %s emoji with %s", emotion, provider)
         async with _generation_semaphore:

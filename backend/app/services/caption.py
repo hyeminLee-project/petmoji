@@ -135,6 +135,27 @@ async def _generate_with_gemini(system: str, user: str) -> str:
     return response.text or ""
 
 
+async def _generate_with_hermes(system: str, user: str) -> str:
+    """Hermes (Ollama) 로컬 모델로 캡션 생성."""
+    import httpx
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        response = await client.post(
+            "http://localhost:11434/api/chat",
+            json={
+                "model": "nous-hermes2",
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                "stream": False,
+                "options": {"temperature": 0.8},
+            },
+        )
+        response.raise_for_status()
+        return response.json()["message"]["content"]
+
+
 async def generate_captions(
     emotions: list[tuple[str, str]],
     features: PetFeatures,
@@ -155,6 +176,8 @@ async def generate_captions(
     try:
         if provider == "openai":
             raw = await _generate_with_openai(system, user)
+        elif provider == "hermes":
+            raw = await _generate_with_hermes(system, user)
         else:
             raw = await _generate_with_gemini(system, user)
 

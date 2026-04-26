@@ -17,6 +17,7 @@ from app.services.generator import (
     EMOTIONS,
     PROVIDERS,
     _build_character_prompt,
+    _enhance_prompt_with_hermes,
     _generation_semaphore,
 )
 from app.services.overlay import overlay_caption
@@ -48,6 +49,7 @@ async def generate_emojis_stream(
     time_of_day: str = Form("none"),
     add_captions: bool = Form(True),
     tier: TierType = Form("free"),
+    enhance_with_hermes: bool = Form(False),
 ):
     """SSE 스트리밍으로 이모지 생성 진행 상황을 실시간 전송"""
     # 입력 검증
@@ -141,6 +143,8 @@ async def generate_emojis_stream(
             prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
 No text, no watermark, clean background."""
+            if enhance_with_hermes:
+                prompt = await _enhance_prompt_with_hermes(prompt)
             async with _generation_semaphore:
                 image_url = await generate_fn(prompt)
             # 캡션 오버레이
