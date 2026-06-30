@@ -130,7 +130,7 @@ async def _generate_with_gemini(system: str, user: str) -> str:
 
     client = genai.Client()
     response = await client.aio.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
         contents=user,
         config=types.GenerateContentConfig(
             system_instruction=system,
