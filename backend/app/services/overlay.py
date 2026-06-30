@@ -11,9 +11,9 @@ from PIL import Image, ImageDraw, ImageFont
 _FONT_PATH = Path(__file__).parent.parent / "assets" / "fonts" / "NotoSansKR-Bold.ttf"
 
 # 텍스트 스타일
-_TEXT_COLOR = (50, 50, 50, 255)  # 진한 회색 본문
+_TEXT_COLOR = (30, 30, 30, 255)  # 거의 검정 본문
 _STROKE_COLOR = (255, 255, 255, 255)  # 흰색 테두리
-_MARGIN_BOTTOM = 16  # 이미지 하단으로부터의 여백
+_MARGIN_TOP = 20  # 이미지 상단으로부터의 여백
 
 
 def _load_font(size: int) -> ImageFont.FreeTypeFont:
@@ -43,20 +43,19 @@ def overlay_caption(image: Image.Image, caption: str) -> Image.Image:
     if img.mode != "RGBA":
         img = img.convert("RGBA")
 
-    # 이미지 크기에 비례하는 폰트 크기 (1024px → ~64px, 360px → ~22px)
-    font_size = max(18, img.width // 16)
+    # 이미지 크기에 비례하는 폰트 크기 (1024px → ~80px, 360px → ~28px)
+    font_size = max(22, img.width // 13)
     font = _load_font(font_size)
-    stroke_width = max(2, font_size // 8)
+    stroke_width = max(3, font_size // 6)
 
     # 텍스트 크기 측정 (스트로크 포함)
     temp_draw = ImageDraw.Draw(img)
     text_bbox = temp_draw.textbbox((0, 0), caption, font=font, stroke_width=stroke_width)
     text_w = text_bbox[2] - text_bbox[0]
-    text_h = text_bbox[3] - text_bbox[1]
 
-    # 텍스트 위치: 하단 중앙
+    # 텍스트 위치: 상단 중앙
     text_x = (img.width - text_w) // 2
-    text_y = img.height - text_h - _MARGIN_BOTTOM
+    text_y = _MARGIN_TOP
 
     # 텍스트 레이어 (반투명 처리를 위해 별도 레이어)
     text_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
