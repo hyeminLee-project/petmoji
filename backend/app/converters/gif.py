@@ -1,14 +1,9 @@
 """움직이는 이모지 GIF 변환기.
 
 감정별 자연스러운 모션을 적용하여 GIF 애니메이션 생성.
-- happy: 신나게 통통 튀기 + 꼬리 흔드는 듯한 좌우 흔들림
-- sad: 축 처지며 느리게 고개 숙임
-- angry: 빠르게 부들부들 떨림
-- sleepy: 느린 호흡 (천천히 오르내림)
-- love: 두근두근 심장 박동 (확대-축소 반복)
-- surprised: 깜짝 놀라 위로 점프 + 착지 스쿼시
-- cool: 여유롭게 좌우로 스웨이
-- celebrate: 점프하며 좌우 회전
+- 이징 함수로 자연스러운 가감속
+- 감정별 고유한 모션 커브 (바운스, 탄성, 호흡 등)
+- 20프레임으로 부드러운 움직임
 
 카카오 움직이는 이모티콘 규격:
 - 360x360px, 72dpi, ≤650KB/개, 총 24개 (PNG 21 + GIF 3)
@@ -26,7 +21,51 @@ from app.models.schemas import ConvertedEmoji, EmojiResult
 
 GIF_SIZE = (256, 256)
 KAKAO_GIF_SIZE = (360, 360)
-NUM_FRAMES = 12
+NUM_FRAMES = 20
+
+
+# ---------------------------------------------------------------------------
+# 이징 함수 (0.0~1.0 입력 → 0.0~1.0 출력)
+# ---------------------------------------------------------------------------
+
+
+def _ease_in_out_sine(t: float) -> float:
+    """부드러운 시작과 끝."""
+    return -(math.cos(math.pi * t) - 1) / 2
+
+
+def _ease_out_bounce(t: float) -> float:
+    """통통 튀는 바운스."""
+    if t < 1 / 2.75:
+        return 7.5625 * t * t
+    elif t < 2 / 2.75:
+        t -= 1.5 / 2.75
+        return 7.5625 * t * t + 0.75
+    elif t < 2.5 / 2.75:
+        t -= 2.25 / 2.75
+        return 7.5625 * t * t + 0.9375
+    else:
+        t -= 2.625 / 2.75
+        return 7.5625 * t * t + 0.984375
+
+
+def _ease_out_elastic(t: float) -> float:
+    """탄성 있는 스프링."""
+    if t == 0 or t == 1:
+        return t
+    return math.pow(2, -10 * t) * math.sin((t * 10 - 0.75) * (2 * math.pi) / 3) + 1
+
+
+def _ease_in_out_quad(t: float) -> float:
+    """부드러운 가감속."""
+    if t < 0.5:
+        return 2 * t * t
+    return 1 - math.pow(-2 * t + 2, 2) / 2
+
+
+# ---------------------------------------------------------------------------
+# 감정별 모션 프리셋
+# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -34,115 +73,175 @@ class MotionPreset:
     """감정별 모션 파라미터."""
 
     y_amplitude: float  # 상하 이동 크기 (px)
-    y_speed: float  # 상하 이동 속도 배율
     stretch_amount: float  # 세로 스트레치 비율 (0.0 ~ 0.15)
     squash_amount: float  # 가로 스쿼시 비율 (0.0 ~ 0.15)
     rotation_deg: float  # 최대 회전 각도
-    rotation_speed: float  # 회전 속도 배율
     scale_pulse: float  # 전체 크기 맥동 비율 (0.0 ~ 0.15)
     frame_duration: int  # 프레임 간격 (ms)
+    x_amplitude: float = 0.0  # 좌우 이동 크기 (px)
+    # 모션 커브: 프레임 인덱스(0~1) → 각 축의 값(0~1)을 계산하는 방식 지정
+    motion_type: str = "sine"  # sine, bounce, breathe, shake, jump, sway, heartbeat
 
 
 MOTION_PRESETS: dict[str, MotionPreset] = {
-    # 신나게 통통 튀기 + 좌우 흔들림
+    # 신나게 통통 튀기 (바운스 이징)
     "happy": MotionPreset(
-        y_amplitude=10,
-        y_speed=2.0,
-        stretch_amount=0.08,
-        squash_amount=0.06,
+        y_amplitude=14,
+        stretch_amount=0.10,
+        squash_amount=0.08,
         rotation_deg=5.0,
-        rotation_speed=2.0,
         scale_pulse=0.0,
-        frame_duration=100,
+        frame_duration=80,
+        x_amplitude=3.0,
+        motion_type="bounce",
     ),
-    # 축 처지며 느리게 고개 숙임
+    # 축 처지며 느리게 흔들림 (부드러운 호흡)
     "sad": MotionPreset(
         y_amplitude=3,
-        y_speed=0.5,
-        stretch_amount=0.03,
-        squash_amount=0.02,
-        rotation_deg=2.0,
-        rotation_speed=0.5,
-        scale_pulse=0.0,
-        frame_duration=180,
-    ),
-    # 빠르게 부들부들 떨림
-    "angry": MotionPreset(
-        y_amplitude=2,
-        y_speed=4.0,
         stretch_amount=0.02,
-        squash_amount=0.04,
-        rotation_deg=1.5,
-        rotation_speed=6.0,
-        scale_pulse=0.03,
-        frame_duration=60,
+        squash_amount=0.01,
+        rotation_deg=3.0,
+        scale_pulse=0.0,
+        frame_duration=150,
+        motion_type="breathe",
+    ),
+    # 빠르게 부들부들 (랜덤 쉐이크)
+    "angry": MotionPreset(
+        y_amplitude=3,
+        stretch_amount=0.03,
+        squash_amount=0.05,
+        rotation_deg=2.0,
+        scale_pulse=0.04,
+        frame_duration=50,
+        x_amplitude=4.0,
+        motion_type="shake",
     ),
     # 느린 호흡 (천천히 오르내림)
     "sleepy": MotionPreset(
         y_amplitude=4,
-        y_speed=0.5,
-        stretch_amount=0.05,
-        squash_amount=0.03,
-        rotation_deg=1.5,
-        rotation_speed=0.5,
-        scale_pulse=0.02,
-        frame_duration=200,
-    ),
-    # 두근두근 심장 박동
-    "love": MotionPreset(
-        y_amplitude=3,
-        y_speed=1.0,
-        stretch_amount=0.02,
+        stretch_amount=0.04,
         squash_amount=0.02,
         rotation_deg=2.0,
-        rotation_speed=1.0,
-        scale_pulse=0.08,
-        frame_duration=120,
+        scale_pulse=0.03,
+        frame_duration=160,
+        motion_type="breathe",
     ),
-    # 깜짝 놀라 점프 + 착지 스쿼시
-    "surprised": MotionPreset(
-        y_amplitude=14,
-        y_speed=1.0,
-        stretch_amount=0.10,
-        squash_amount=0.08,
-        rotation_deg=0.0,
-        rotation_speed=0.0,
-        scale_pulse=0.0,
+    # 두근두근 심장 박동 (확대-축소)
+    "love": MotionPreset(
+        y_amplitude=3,
+        stretch_amount=0.02,
+        squash_amount=0.02,
+        rotation_deg=3.0,
+        scale_pulse=0.10,
         frame_duration=100,
+        motion_type="heartbeat",
+    ),
+    # 깜짝 놀라 점프 + 착지 (점프 커브)
+    "surprised": MotionPreset(
+        y_amplitude=18,
+        stretch_amount=0.12,
+        squash_amount=0.10,
+        rotation_deg=0.0,
+        scale_pulse=0.0,
+        frame_duration=70,
+        motion_type="jump",
     ),
     # 여유롭게 좌우 스웨이
     "cool": MotionPreset(
         y_amplitude=2,
-        y_speed=0.8,
         stretch_amount=0.02,
         squash_amount=0.02,
-        rotation_deg=4.0,
-        rotation_speed=1.0,
+        rotation_deg=6.0,
         scale_pulse=0.0,
-        frame_duration=150,
+        frame_duration=120,
+        x_amplitude=5.0,
+        motion_type="sway",
     ),
-    # 점프하며 좌우 회전
+    # 점프하며 회전 (바운스 + 회전)
     "celebrate": MotionPreset(
-        y_amplitude=12,
-        y_speed=1.5,
-        stretch_amount=0.06,
-        squash_amount=0.05,
+        y_amplitude=16,
+        stretch_amount=0.08,
+        squash_amount=0.06,
+        rotation_deg=10.0,
+        scale_pulse=0.05,
+        frame_duration=70,
+        x_amplitude=3.0,
+        motion_type="bounce",
+    ),
+    # 흔들흔들 인사
+    "greeting": MotionPreset(
+        y_amplitude=4,
+        stretch_amount=0.03,
+        squash_amount=0.02,
         rotation_deg=8.0,
-        rotation_speed=1.5,
-        scale_pulse=0.04,
+        scale_pulse=0.0,
+        frame_duration=90,
+        motion_type="sway",
+    ),
+    # 부끄러워서 움찔움찔
+    "shy": MotionPreset(
+        y_amplitude=3,
+        stretch_amount=0.04,
+        squash_amount=0.03,
+        rotation_deg=4.0,
+        scale_pulse=0.0,
+        frame_duration=120,
+        x_amplitude=2.0,
+        motion_type="breathe",
+    ),
+    # 달려~!
+    "running": MotionPreset(
+        y_amplitude=8,
+        stretch_amount=0.06,
+        squash_amount=0.04,
+        rotation_deg=3.0,
+        scale_pulse=0.0,
+        frame_duration=60,
+        x_amplitude=6.0,
+        motion_type="bounce",
+    ),
+    # 냠냠 먹기
+    "eating": MotionPreset(
+        y_amplitude=3,
+        stretch_amount=0.06,
+        squash_amount=0.04,
+        rotation_deg=2.0,
+        scale_pulse=0.0,
         frame_duration=100,
+        motion_type="bounce",
+    ),
+    # 흑흑 울기 (떨림)
+    "crying": MotionPreset(
+        y_amplitude=4,
+        stretch_amount=0.03,
+        squash_amount=0.02,
+        rotation_deg=2.0,
+        scale_pulse=0.0,
+        frame_duration=100,
+        x_amplitude=3.0,
+        motion_type="shake",
+    ),
+    # 신남 (빠른 바운스)
+    "excited": MotionPreset(
+        y_amplitude=12,
+        stretch_amount=0.08,
+        squash_amount=0.06,
+        rotation_deg=6.0,
+        scale_pulse=0.03,
+        frame_duration=70,
+        x_amplitude=4.0,
+        motion_type="bounce",
     ),
 }
 
 DEFAULT_PRESET = MotionPreset(
     y_amplitude=6,
-    y_speed=1.0,
-    stretch_amount=0.06,
-    squash_amount=0.04,
+    stretch_amount=0.05,
+    squash_amount=0.03,
     rotation_deg=3.0,
-    rotation_speed=1.0,
     scale_pulse=0.0,
-    frame_duration=120,
+    frame_duration=100,
+    motion_type="sine",
 )
 
 
@@ -155,7 +254,146 @@ def _get_preset(emotion: str) -> MotionPreset:
     return DEFAULT_PRESET
 
 
-# 배경 판정 임계값 (흰색/투명 배경 감지)
+# ---------------------------------------------------------------------------
+# 모션 계산
+# ---------------------------------------------------------------------------
+
+
+def _compute_motion(t: float, preset: MotionPreset) -> dict:
+    """프레임 시간 t(0~1)에서 모션 값 계산.
+
+    Returns:
+        dy, dx, stretch, squash, rotation, scale
+    """
+    motion = preset.motion_type
+
+    if motion == "bounce":
+        # 위로 올라갔다가 바운스하며 착지
+        # 전반: 올라감, 후반: 바운스 착지
+        if t < 0.4:
+            # 올라가는 구간 (이즈인아웃)
+            up_t = t / 0.4
+            eased = _ease_in_out_sine(up_t)
+            dy = -preset.y_amplitude * eased
+            stretch = 1.0 + preset.stretch_amount * eased
+            squash = 1.0 - preset.squash_amount * eased * 0.5
+        else:
+            # 내려오며 바운스
+            down_t = (t - 0.4) / 0.6
+            eased = _ease_out_bounce(down_t)
+            dy = -preset.y_amplitude * (1.0 - eased)
+            # 착지 시 스쿼시
+            land_factor = max(0, 1.0 - abs(dy) / max(1, preset.y_amplitude))
+            stretch = 1.0 - preset.squash_amount * land_factor
+            squash = 1.0 + preset.squash_amount * land_factor * 0.8
+        dx = preset.x_amplitude * math.sin(t * 2 * math.pi)
+        rotation = preset.rotation_deg * math.sin(t * 2 * math.pi)
+        scale = 1.0 + preset.scale_pulse * math.sin(t * 4 * math.pi)
+
+    elif motion == "breathe":
+        # 부드러운 호흡 (이즈인아웃 사인)
+        eased = _ease_in_out_sine(t)
+        dy = -preset.y_amplitude * math.sin(t * 2 * math.pi)
+        dx = 0
+        # 호흡: 들숨(늘어남) - 날숨(줄어듦)
+        breath = _ease_in_out_sine(math.fmod(t * 2, 1.0))
+        stretch = 1.0 + preset.stretch_amount * breath
+        squash = 1.0 - preset.squash_amount * breath * 0.5
+        rotation = preset.rotation_deg * math.sin(t * math.pi)  # 한 방향으로 기울었다 돌아옴
+        scale = 1.0 + preset.scale_pulse * breath
+
+    elif motion == "shake":
+        # 빠르게 부들부들 (고주파 + 감쇠 없는 진동)
+        # 불규칙하게 보이도록 두 주파수 합성
+        shake_y = math.sin(t * 8 * math.pi) + 0.5 * math.sin(t * 13 * math.pi)
+        shake_x = math.cos(t * 7 * math.pi) + 0.3 * math.cos(t * 11 * math.pi)
+        dy = preset.y_amplitude * shake_y / 1.5
+        dx = preset.x_amplitude * shake_x / 1.3
+        stretch = 1.0 + preset.stretch_amount * abs(math.sin(t * 6 * math.pi))
+        squash = 1.0 + preset.squash_amount * abs(math.cos(t * 6 * math.pi))
+        rotation = preset.rotation_deg * math.sin(t * 10 * math.pi)
+        scale = 1.0 + preset.scale_pulse * abs(math.sin(t * 4 * math.pi))
+
+    elif motion == "jump":
+        # 점프: 웅크림 → 도약 → 체공 → 착지 스쿼시
+        if t < 0.15:
+            # 웅크림 (anticipation)
+            squat_t = t / 0.15
+            eased = _ease_in_out_quad(squat_t)
+            dy = preset.y_amplitude * 0.15 * eased  # 살짝 아래로
+            stretch = 1.0 - preset.stretch_amount * 0.5 * eased
+            squash = 1.0 + preset.squash_amount * 0.5 * eased
+        elif t < 0.55:
+            # 도약 + 체공
+            fly_t = (t - 0.15) / 0.4
+            # 포물선: 0 → 1 → 0
+            arc = 4 * fly_t * (1 - fly_t)
+            dy = -preset.y_amplitude * arc
+            stretch = 1.0 + preset.stretch_amount * arc
+            squash = 1.0 - preset.squash_amount * arc * 0.3
+        else:
+            # 착지 + 바운스
+            land_t = (t - 0.55) / 0.45
+            eased = _ease_out_elastic(land_t)
+            dy = 0
+            # 착지 충격 → 복원
+            impact = 1.0 - eased
+            stretch = 1.0 - preset.squash_amount * impact
+            squash = 1.0 + preset.squash_amount * impact * 0.8
+        dx = 0
+        rotation = 0
+        scale = 1.0
+
+    elif motion == "sway":
+        # 좌우로 여유롭게 흔들림
+        eased = _ease_in_out_sine(math.fmod(t * 2, 1.0))
+        dx = preset.x_amplitude * math.sin(t * 2 * math.pi)
+        dy = -preset.y_amplitude * abs(math.sin(t * 2 * math.pi))
+        rotation = preset.rotation_deg * math.sin(t * 2 * math.pi)
+        stretch = 1.0
+        squash = 1.0
+        scale = 1.0
+
+    elif motion == "heartbeat":
+        # 두근두근: 빠르게 커졌다 → 원래 → 다시 커졌다 → 원래 (이중 박동)
+        # 1사이클에 2번 박동
+        beat_t = math.fmod(t * 2, 1.0)
+        if beat_t < 0.3:
+            # 확장
+            pulse = _ease_out_elastic(beat_t / 0.3)
+        else:
+            # 수축
+            pulse = 1.0 - _ease_in_out_quad((beat_t - 0.3) / 0.7)
+        scale = 1.0 + preset.scale_pulse * pulse
+        dy = -preset.y_amplitude * pulse * 0.5
+        dx = 0
+        stretch = 1.0 + preset.stretch_amount * pulse
+        squash = 1.0 - preset.squash_amount * pulse * 0.3
+        rotation = preset.rotation_deg * math.sin(t * 4 * math.pi) * (1 - pulse * 0.5)
+
+    else:  # sine (default)
+        angle = t * 2 * math.pi
+        dy = -preset.y_amplitude * math.sin(angle)
+        dx = preset.x_amplitude * math.cos(angle)
+        stretch = 1.0 + preset.stretch_amount * math.sin(angle)
+        squash = 1.0 - preset.squash_amount * math.sin(angle)
+        rotation = preset.rotation_deg * math.sin(angle)
+        scale = 1.0 + preset.scale_pulse * math.sin(angle * 2)
+
+    return {
+        "dy": dy,
+        "dx": dx,
+        "stretch": stretch,
+        "squash": squash,
+        "rotation": rotation,
+        "scale": scale,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 배경/캐릭터 감지
+# ---------------------------------------------------------------------------
+
 _BG_THRESHOLD = 240
 _ALPHA_THRESHOLD = 30
 
@@ -164,16 +402,11 @@ def _detect_character_bbox(
     img: Image.Image,
     padding: int = 4,
 ) -> tuple[int, int, int, int]:
-    """캐릭터(비배경) 영역의 바운딩 박스 감지.
-
-    RGBA → 알파 채널 기반, RGB → 흰색 배경 기반으로 전경 영역을 찾는다.
-    반환: (left, top, right, bottom)
-    """
+    """캐릭터(비배경) 영역의 바운딩 박스 감지."""
     if img.mode == "RGBA":
         alpha = img.split()[3]
         bbox = alpha.point(lambda p: 255 if p > _ALPHA_THRESHOLD else 0).getbbox()
     else:
-        # RGB: 흰색이 아닌 픽셀을 전경으로 판단
         r, g, b = img.split()[:3]
         mask = Image.merge(
             "L",
@@ -191,7 +424,6 @@ def _detect_character_bbox(
     if not bbox:
         return (0, 0, img.width, img.height)
 
-    # 패딩 추가
     left = max(0, bbox[0] - padding)
     top = max(0, bbox[1] - padding)
     right = min(img.width, bbox[2] + padding)
@@ -209,14 +441,12 @@ def _has_scene_background(img: Image.Image) -> bool:
     """이미지가 장면 배경(비흰색)을 가지고 있는지 판단."""
     if img.mode == "RGBA":
         alpha = img.split()[3]
-        # 투명 픽셀이 10% 이상이면 투명 배경
         transparent_ratio = sum(1 for p in alpha.getdata() if p < _ALPHA_THRESHOLD) / (
             img.width * img.height
         )
         if transparent_ratio > 0.1:
             return False
 
-    # 가장자리 1px 샘플링해서 흰색인지 확인
     pixels = []
     for x in range(img.width):
         pixels.append(img.getpixel((x, 0))[:3])
@@ -235,8 +465,6 @@ def _extract_background(img: Image.Image, bbox: tuple[int, int, int, int]) -> Im
     """캐릭터 영역을 지운 배경 이미지 생성 (간단한 인페인팅)."""
     bg = img.copy()
     left, top, right, bottom = bbox
-    # 캐릭터 영역을 주변 색으로 채움
-    # 간단하게: bbox 바깥 가장자리 색의 평균으로 채우기
     edge_pixels = []
     for x in range(left, right):
         if top > 0:
@@ -264,17 +492,18 @@ def _extract_background(img: Image.Image, bbox: tuple[int, int, int, int]) -> Im
     return bg
 
 
+# ---------------------------------------------------------------------------
+# 프레임 생성
+# ---------------------------------------------------------------------------
+
+
 def _create_emotion_frames(
     img: Image.Image,
     preset: MotionPreset,
     num_frames: int = NUM_FRAMES,
     size: tuple[int, int] = GIF_SIZE,
 ) -> list[Image.Image]:
-    """캐릭터 bbox 기반 감정 애니메이션 프레임 생성.
-
-    배경이 있는 이미지: 배경 고정 + 캐릭터만 움직임
-    흰/투명 배경 이미지: 흰색 캔버스 + 캐릭터만 움직임
-    """
+    """캐릭터 bbox 기반 감정 애니메이션 프레임 생성."""
     if img.mode != "RGBA":
         img = img.convert("RGBA")
 
@@ -289,21 +518,20 @@ def _create_emotion_frames(
 
     for i in range(num_frames):
         t = i / num_frames
-        angle = t * 2 * math.pi
+        m = _compute_motion(t, preset)
 
-        dy = int(-preset.y_amplitude * math.sin(angle * preset.y_speed))
-        pulse = 1.0 + preset.scale_pulse * math.sin(angle * 2)
-        stretch = pulse + preset.stretch_amount * math.sin(angle * preset.y_speed)
-        squash = pulse - preset.squash_amount * math.sin(angle * preset.y_speed)
+        dy = int(m["dy"])
+        dx = int(m["dx"])
+        scale_x = m["squash"] * m["scale"]
+        scale_y = m["stretch"] * m["scale"]
 
-        new_w = max(1, int(character.width * squash))
-        new_h = max(1, int(character.height * stretch))
+        new_w = max(1, int(character.width * scale_x))
+        new_h = max(1, int(character.height * scale_y))
         deformed = character.resize((new_w, new_h), Image.LANCZOS)
 
-        if preset.rotation_deg > 0:
-            rot = preset.rotation_deg * math.sin(angle * preset.rotation_speed)
+        if abs(m["rotation"]) > 0.1:
             deformed = deformed.rotate(
-                rot,
+                m["rotation"],
                 resample=Image.BICUBIC,
                 expand=True,
                 fillcolor=(0, 0, 0, 0),
@@ -311,12 +539,17 @@ def _create_emotion_frames(
 
         canvas = bg_layer.copy() if bg_layer else Image.new("RGBA", size, (255, 255, 255, 255))
 
-        paste_x = pivot[0] - deformed.width // 2
+        paste_x = pivot[0] - deformed.width // 2 + dx
         paste_y = pivot[1] - deformed.height + dy
         canvas.paste(deformed, (paste_x, paste_y), deformed)
         frames.append(canvas.convert("RGB"))
 
     return frames
+
+
+# ---------------------------------------------------------------------------
+# 변환 API
+# ---------------------------------------------------------------------------
 
 
 def convert_gif(emojis: list[EmojiResult]) -> list[ConvertedEmoji]:
@@ -345,11 +578,7 @@ def convert_gif(emojis: list[EmojiResult]) -> list[ConvertedEmoji]:
 
 
 def _optimize_gif_size(frames: list[Image.Image], max_bytes: int, duration: int) -> str:
-    """GIF 용량 제한 내로 최적화. 초과 시 프레임 크기 축소.
-
-    Raises:
-        ValueError: 최소 스케일까지 축소해도 용량 초과 시
-    """
+    """GIF 용량 제한 내로 최적화. 초과 시 프레임 크기 축소."""
     import base64
 
     gif_url = encode_gif(frames, duration=duration)
