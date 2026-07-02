@@ -96,8 +96,9 @@ async def test_animate_free_tier_forbidden(client: AsyncClient, sample_image_b64
 async def test_animate_not_configured(
     client: AsyncClient, sample_image_b64: str, monkeypatch: pytest.MonkeyPatch
 ):
-    """RUNWAY_API_KEY 미설정 시 503"""
-    monkeypatch.delenv("RUNWAY_API_KEY", raising=False)
+    """영상 프로바이더 미설정 시 503"""
+    for env in ("RUNWAY_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY", "VIDEO_PROVIDER"):
+        monkeypatch.delenv(env, raising=False)
     res = await client.post(
         "/api/animate",
         json={
