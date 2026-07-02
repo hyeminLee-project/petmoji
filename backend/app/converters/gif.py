@@ -392,6 +392,69 @@ def _compute_motion(t: float, preset: MotionPreset) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# 메시 워프 (부분 움직임)
+# ---------------------------------------------------------------------------
+
+# 강체 이동/회전 대신 발 고정 메시 워프를 적용할 모션
+_WARP_MOTIONS = {"sway", "breathe", "shake"}
+# 모션별 워프 진동 주기 (루프당 사이클 수, 정수여야 루프가 이어짐)
+_WARP_FREQS = {"sway": 1.0, "breathe": 1.0, "shake": 4.0}
+_WARP_STRIPS = 12
+
+
+def _strip_dx(t: float, height_ratio: float, amplitude: float, freq: float) -> float:
+    """높이 비율(발=0, 머리=1)에 따른 수평 변위.
+
+    위로 갈수록 변위가 커지고(제곱 곡선) 반 박자 늦게 따라와서(위상 지연)
+    상체가 출렁이는 follow-through가 생긴다.
+    """
+    factor = height_ratio**1.5
+    delay = 0.12 * height_ratio / freq
+    return amplitude * factor * math.sin(2 * math.pi * freq * (t - delay))
+
+
+def _mesh_warp_character(
+    img: Image.Image,
+    t: float,
+    amplitude: float,
+    freq: float,
+) -> Image.Image:
+    """세로 그라디언트 메시 워프: 하단(발)은 고정, 위로 갈수록 크게 휘어진다.
+
+    가로 스트립별로 소스 좌표를 밀어서 캐릭터가 연속적으로 휘어지게 한다.
+    강체 변형과 달리 발이 바닥에 붙어 있어 부분 움직임처럼 보인다.
+    """
+    if amplitude < 0.5:
+        return img
+
+    pad = math.ceil(amplitude) + 2
+    w, h = img.size
+    padded = Image.new("RGBA", (w + pad * 2, h), (0, 0, 0, 0))
+    padded.paste(img, (pad, 0))
+
+    mesh = []
+    for i in range(_WARP_STRIPS):
+        y0 = h * i // _WARP_STRIPS
+        y1 = h * (i + 1) // _WARP_STRIPS if i < _WARP_STRIPS - 1 else h
+        dx0 = _strip_dx(t, 1 - y0 / h, amplitude, freq)
+        dx1 = _strip_dx(t, 1 - y1 / h, amplitude, freq)
+        bbox = (0, y0, padded.width, y1)
+        quad = (
+            -dx0,
+            y0,
+            -dx1,
+            y1,
+            padded.width - dx1,
+            y1,
+            padded.width - dx0,
+            y0,
+        )
+        mesh.append((bbox, quad))
+
+    return padded.transform(padded.size, Image.MESH, mesh, resample=Image.BICUBIC)
+
+
+# ---------------------------------------------------------------------------
 # 배경/캐릭터 감지
 # ---------------------------------------------------------------------------
 
@@ -536,7 +599,12 @@ def _create_emotion_frames(
         new_h = max(1, int(character.height * scale_y))
         deformed = character.resize((new_w, new_h), Image.LANCZOS)
 
-        if abs(m["rotation"]) > 0.1:
+        if preset.motion_type in _WARP_MOTIONS:
+            # 발 고정 메시 워프: 강체 이동/회전을 상체 스웨이로 대체
+            amp = preset.x_amplitude * 2.0 + preset.rotation_deg * 0.8
+            deformed = _mesh_warp_character(deformed, t, amp, _WARP_FREQS[preset.motion_type])
+            dx = int(m["dx"] * 0.3)
+        elif abs(m["rotation"]) > 0.1:
             deformed = deformed.rotate(
                 m["rotation"],
                 resample=Image.BICUBIC,
