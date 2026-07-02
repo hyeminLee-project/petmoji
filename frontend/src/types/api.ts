@@ -18,6 +18,7 @@ export interface PetFeatures {
 export interface EmojiResult {
   emotion: string;
   image_url: string;
+  caption?: string;
   index?: number;
 }
 

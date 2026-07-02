@@ -65,11 +65,24 @@ export default function EmojiGrid({ emojis }: Props) {
             key={emoji.emotion}
             className="group relative bg-gray-50 rounded-xl p-2 text-center"
           >
-            <img
-              src={emoji.image_url}
-              alt={emoji.emotion}
-              className="w-full aspect-square object-cover rounded-lg mb-2"
-            />
+            <div className="relative">
+              <img
+                src={emoji.image_url}
+                alt={emoji.emotion}
+                className="w-full aspect-square object-cover rounded-lg mb-2"
+              />
+              {emoji.caption && (
+                <span
+                  className="absolute top-1.5 left-0 right-0 text-center font-extrabold text-gray-900 text-base leading-tight pointer-events-none"
+                  style={{
+                    textShadow:
+                      "-2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 2px 2px 0 #fff, 0 -2px 0 #fff, 0 2px 0 #fff, -2px 0 0 #fff, 2px 0 0 #fff",
+                  }}
+                >
+                  {emoji.caption}
+                </span>
+              )}
+            </div>
             <p className="text-sm font-medium text-gray-700">
               {EMOTION_LABELS[emoji.emotion] || emoji.emotion}
             </p>

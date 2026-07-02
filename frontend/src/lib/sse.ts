@@ -14,6 +14,7 @@ export interface ProgressEvent {
 export interface EmojiEvent {
   emotion: string;
   image_url: string;
+  caption?: string;
   index: number;
   total: number;
 }

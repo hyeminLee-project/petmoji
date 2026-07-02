@@ -66,7 +66,12 @@ export default function Home() {
         onEmoji: (event) => {
           setPartialEmojis((prev) => [
             ...prev,
-            { emotion: event.emotion, image_url: event.image_url, index: event.index },
+            {
+              emotion: event.emotion,
+              image_url: event.image_url,
+              caption: event.caption,
+              index: event.index,
+            },
           ]);
         },
         onComplete: (data) => {

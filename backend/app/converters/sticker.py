@@ -8,6 +8,7 @@ from PIL import Image, ImageFilter
 
 from app.converters.base import decode_image, encode_image
 from app.models.schemas import ConvertedEmoji, EmojiResult
+from app.services.overlay import overlay_caption
 
 STICKER_SIZE = (512, 512)
 BORDER_WIDTH = 8
@@ -71,6 +72,7 @@ def convert_sticker(emojis: list[EmojiResult]) -> list[ConvertedEmoji]:
 
         # Add sticker border
         canvas = _add_sticker_border(canvas)
+        canvas = overlay_caption(canvas, emoji.caption)
 
         results.append(
             ConvertedEmoji(

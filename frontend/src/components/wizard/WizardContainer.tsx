@@ -167,7 +167,12 @@ export default function WizardContainer({ session, provider: _provider }: Props)
       onEmoji: (data) => {
         setPartialEmojis((prev) => [
           ...prev,
-          { emotion: data.emotion, image_url: data.image_url, index: data.index },
+          {
+            emotion: data.emotion,
+            image_url: data.image_url,
+            caption: data.caption,
+            index: data.index,
+          },
         ]);
       },
       onComplete: (data) => {

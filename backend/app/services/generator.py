@@ -2,10 +2,8 @@ import asyncio
 import base64
 import logging
 
-from app.converters.base import decode_image, encode_image
 from app.models.schemas import EmojiResult, PetFeatures
 from app.services.caption import generate_captions
-from app.services.overlay import overlay_caption
 
 logger = logging.getLogger(__name__)
 
@@ -297,13 +295,11 @@ Expression/pose: {emotion} - {description}.
         async with _generation_semaphore:
             image_url = await generate_fn(prompt)
 
-        # 캡션 오버레이
-        if add_captions and emotion in captions and captions[emotion]:
-            img = decode_image(image_url)
-            img = overlay_caption(img, captions[emotion])
-            image_url = encode_image(img)
-
-        return EmojiResult(emotion=emotion, image_url=image_url)
+        return EmojiResult(
+            emotion=emotion,
+            image_url=image_url,
+            caption=captions.get(emotion, ""),
+        )
 
     results = await asyncio.gather(
         *[_generate_one(emotion, desc) for emotion, desc in emotions_to_generate]

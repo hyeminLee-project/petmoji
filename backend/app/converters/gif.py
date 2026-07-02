@@ -18,6 +18,7 @@ from app.converters.base import decode_image, encode_gif
 from app.converters.kakao import KAKAO_COUNT_LIMITS
 from app.converters.kakao import SIZE_LIMITS as KAKAO_SIZE_LIMITS
 from app.models.schemas import ConvertedEmoji, EmojiResult
+from app.services.overlay import render_caption_layer
 
 GIF_SIZE = (256, 256)
 KAKAO_GIF_SIZE = (360, 360)
@@ -502,8 +503,12 @@ def _create_emotion_frames(
     preset: MotionPreset,
     num_frames: int = NUM_FRAMES,
     size: tuple[int, int] = GIF_SIZE,
+    caption: str = "",
 ) -> list[Image.Image]:
-    """캐릭터 bbox 기반 감정 애니메이션 프레임 생성."""
+    """캐릭터 bbox 기반 감정 애니메이션 프레임 생성.
+
+    캡션은 캐릭터 모션과 분리하여 모든 프레임에 고정 위치로 합성한다.
+    """
     if img.mode != "RGBA":
         img = img.convert("RGBA")
 
@@ -513,6 +518,8 @@ def _create_emotion_frames(
     has_bg = _has_scene_background(img)
 
     bg_layer = _extract_background(img, bbox) if has_bg else None
+    canvas_size = bg_layer.size if bg_layer else size
+    caption_layer = render_caption_layer(canvas_size, caption)
 
     frames: list[Image.Image] = []
 
@@ -542,6 +549,8 @@ def _create_emotion_frames(
         paste_x = pivot[0] - deformed.width // 2 + dx
         paste_y = pivot[1] - deformed.height + dy
         canvas.paste(deformed, (paste_x, paste_y), deformed)
+        if caption_layer is not None:
+            canvas = Image.alpha_composite(canvas, caption_layer)
         frames.append(canvas.convert("RGB"))
 
     return frames
@@ -561,7 +570,7 @@ def convert_gif(emojis: list[EmojiResult]) -> list[ConvertedEmoji]:
         img.thumbnail(GIF_SIZE, Image.LANCZOS)
 
         preset = _get_preset(emoji.emotion)
-        frames = _create_emotion_frames(img, preset)
+        frames = _create_emotion_frames(img, preset, caption=emoji.caption)
         gif_url = encode_gif(frames, duration=preset.frame_duration)
 
         results.append(
@@ -621,7 +630,7 @@ def convert_kakao_animated(emojis: list[EmojiResult]) -> list[ConvertedEmoji]:
         img.thumbnail(KAKAO_GIF_SIZE, Image.LANCZOS)
 
         preset = _get_preset(emoji.emotion)
-        frames = _create_emotion_frames(img, preset, size=KAKAO_GIF_SIZE)
+        frames = _create_emotion_frames(img, preset, size=KAKAO_GIF_SIZE, caption=emoji.caption)
         gif_url = _optimize_gif_size(frames, max_bytes, preset.frame_duration)
 
         results.append(
