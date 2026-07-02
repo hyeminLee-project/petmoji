@@ -1,6 +1,5 @@
 import type {
   WizardSession,
-  EmojiStyle,
   ImageProvider,
   Tier,
   WizardStep,

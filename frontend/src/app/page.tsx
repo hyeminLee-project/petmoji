@@ -132,7 +132,7 @@ export default function Home() {
 
       {/* 위자드 모드 */}
       {wizardSession ? (
-        <WizardContainer session={wizardSession} provider={provider} />
+        <WizardContainer session={wizardSession} provider={provider} tier={tier} />
       ) : (
         <>
           {/* Upload Section */}
@@ -217,7 +217,7 @@ export default function Home() {
                 </p>
               </div>
               <EmojiGrid emojis={result.emojis} />
-              <FormatSelector emojis={result.emojis} />
+              <FormatSelector emojis={result.emojis} tier={tier} />
             </div>
           )}
         </>
