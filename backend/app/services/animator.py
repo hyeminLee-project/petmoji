@@ -83,6 +83,9 @@ async def generate_motion_video(image_data_url: str, emotion: str) -> bytes:
         response = await client.post(
             f"{RUNWAY_API_BASE}/image_to_video", json=payload, headers=headers
         )
+        if response.status_code == 400 and "credits" in response.text.lower():
+            logger.error("Runway credits exhausted")
+            raise RuntimeError("Runway API 크레딧이 부족합니다")
         response.raise_for_status()
         task_id = response.json()["id"]
         logger.info("Runway task created: %s (emotion=%s)", task_id, emotion)
