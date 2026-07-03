@@ -115,9 +115,8 @@ async def generate_emojis_stream(
             )
             try:
                 captions = await generate_captions(EMOTIONS[:emoji_count], pet_features, provider)
-                logger.info("Captions generated: %s", captions)
             except Exception:
-                logger.exception("Caption generation failed, continuing without captions")
+                logger.warning("Caption generation failed, continuing without captions")
 
         # Step 3: 이모지 병렬 생성
         generate_fn = PROVIDERS[provider]
