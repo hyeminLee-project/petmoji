@@ -6,7 +6,12 @@ import logging
 from app.graph.prompts import build_preview_prompt, build_wizard_prompt
 from app.graph.state import WizardState
 from app.services.analyzer import analyze_pet_photo
-from app.services.generator import EMOTIONS, PROVIDERS, _generation_semaphore
+from app.services.generator import (
+    EMOTIONS,
+    PROVIDERS,
+    _generation_semaphore,
+    build_prompt_suffix,
+)
 from app.utils.upload import MAX_PROMPT_LENGTH
 
 logger = logging.getLogger(__name__)
@@ -131,11 +136,12 @@ async def generate_node(state: WizardState) -> dict:
     )
 
     emotions_to_generate = EMOTIONS[:emoji_count]
+    suffix = build_prompt_suffix(state.get("scene_background", "white"))
 
     async def _gen(emotion: str, description: str) -> dict:
         prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
-No text, no watermark, clean background."""
+{suffix}"""
         async with _generation_semaphore:
             image_url = await generate_fn(prompt)
         return {"emotion": emotion, "image_url": image_url}
@@ -157,11 +163,12 @@ async def free_generate_node(state: WizardState) -> dict:
     )
 
     emotions_to_generate = EMOTIONS[:emoji_count]
+    suffix = build_prompt_suffix()
 
     async def _gen(emotion: str, description: str) -> dict:
         prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
-No text, no watermark, clean background."""
+{suffix}"""
         async with _generation_semaphore:
             image_url = await generate_fn(prompt)
         return {"emotion": emotion, "image_url": image_url}
