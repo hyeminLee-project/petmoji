@@ -101,6 +101,9 @@ ACCESSORY_DESCRIPTIONS = {
     "headband": "wearing a cute headband with ears",
 }
 
+# 장면이 없는 단색/패턴 배경 (이 목록에 없으면 장면 배경으로 취급)
+PLAIN_BACKGROUNDS = ("white", "transparent", "gradient")
+
 BACKGROUND_DESCRIPTIONS = {
     "white": "on a clean white background",
     "transparent": "on a clean white background",
@@ -270,7 +273,7 @@ async def generate_emoji_set(
         time_of_day,
     )
 
-    has_scene_bg = background not in ("white", "transparent", "gradient")
+    has_scene_bg = background not in PLAIN_BACKGROUNDS
 
     emotions_to_generate = EMOTIONS[:emoji_count]
 
