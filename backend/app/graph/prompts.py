@@ -3,17 +3,10 @@
 from app.services.generator import (
     ACCESSORY_DESCRIPTIONS,
     BACKGROUND_DESCRIPTIONS,
+    STYLE_DESCRIPTIONS,
     TIME_DESCRIPTIONS,
     _sanitize_custom_prompt,
 )
-
-STYLE_DESCRIPTIONS = {
-    "2d": "clean 2D vector art style, flat colors, bold outlines, like Kakao Friends or LINE stickers",
-    "3d": "cute 3D rendered style, soft lighting, clay/vinyl figure look, like Pop Mart figurines",
-    "watercolor": "soft watercolor painting style, gentle brush strokes, pastel colors, dreamy atmosphere",
-    "pixel": "pixel art style, 32x32 retro game character, limited color palette, crisp edges",
-    "realistic": "photorealistic digital painting, real fur texture, natural proportions, studio lighting",
-}
 
 PROPORTION_DESCRIPTIONS = {
     "chibi": "chibi-proportioned (very big head, tiny body, 2:1 head-to-body ratio)",

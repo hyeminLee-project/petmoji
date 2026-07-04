@@ -18,6 +18,7 @@ from app.services.generator import (
     _build_character_prompt,
     _enhance_prompt_with_hermes,
     _generation_semaphore,
+    build_prompt_suffix,
 )
 from app.utils.upload import MAX_PROMPT_LENGTH, read_and_validate_image
 
@@ -137,10 +138,12 @@ async def generate_emojis_stream(
             },
         )
 
+        suffix = build_prompt_suffix(background)
+
         async def _gen(idx: int, emotion: str, description: str) -> tuple[int, str, str]:
             prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
-No text, no watermark, clean background."""
+{suffix}"""
             if enhance_with_hermes:
                 prompt = await _enhance_prompt_with_hermes(prompt)
             async with _generation_semaphore:

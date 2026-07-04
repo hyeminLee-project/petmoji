@@ -35,7 +35,12 @@ from app.models.schemas import (
 )
 from app.models.tiers import TierType, get_tier_config
 from app.services.caption import generate_captions
-from app.services.generator import EMOTIONS, PROVIDERS, _generation_semaphore
+from app.services.generator import (
+    EMOTIONS,
+    PROVIDERS,
+    _generation_semaphore,
+    build_prompt_suffix,
+)
 from app.utils.upload import read_and_validate_image
 
 logger = logging.getLogger(__name__)
@@ -416,10 +421,12 @@ async def wizard_generate(
             emojis = []
             total = len(emotions_to_generate)
 
+            suffix = build_prompt_suffix(state.get("scene_background", "white"))
+
             async def _gen(idx: int, emotion: str, description: str) -> tuple[int, str, str]:
                 prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
-No text, no watermark, clean background."""
+{suffix}"""
                 async with _generation_semaphore:
                     image_url = await generate_fn(prompt)
                 return idx, emotion, image_url
