@@ -86,6 +86,24 @@ def _decode_data_url(image_data_url: str) -> tuple[bytes, str]:
     return base64.b64decode(b64_data), mime_type
 
 
+def _flatten_transparency(image_data_url: str) -> str:
+    """투명 배경을 흰색으로 평탄화.
+
+    비디오 모델은 알파 채널을 지원하지 않아 투명 영역이 검정으로 합성된다.
+    흰 배경으로 보내고, GIF 변환 시 다시 키잉해 투명을 복원한다.
+    """
+    from PIL import Image
+
+    from app.converters.base import decode_image, encode_image
+
+    img = decode_image(image_data_url)
+    if img.getextrema()[3][0] >= 255:
+        return image_data_url
+
+    background = Image.new("RGBA", img.size, (255, 255, 255, 255))
+    return encode_image(Image.alpha_composite(background, img))
+
+
 async def _generate_with_runway(image_data_url: str, prompt: str) -> bytes:
     """Runway Gen-4 Turbo로 영상 생성."""
     api_key = os.environ["RUNWAY_API_KEY"]
@@ -189,6 +207,7 @@ async def generate_motion_video(image_data_url: str, emotion: str) -> bytes:
     if provider is None:
         raise RuntimeError("영상 생성 프로바이더가 설정되지 않았습니다")
 
+    image_data_url = _flatten_transparency(image_data_url)
     prompt = _build_motion_prompt(emotion)
     logger.info("Generating motion video via %s (emotion=%s)", provider, emotion)
     return await _PROVIDERS[provider](image_data_url, prompt)

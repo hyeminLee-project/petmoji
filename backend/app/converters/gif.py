@@ -654,11 +654,13 @@ def convert_gif(emojis: list[EmojiResult]) -> list[ConvertedEmoji]:
     return results
 
 
-def _optimize_gif_size(frames: list[Image.Image], max_bytes: int, duration: int) -> str:
+def _optimize_gif_size(
+    frames: list[Image.Image], max_bytes: int, duration: int, transparent: bool = False
+) -> str:
     """GIF 용량 제한 내로 최적화. 초과 시 프레임 크기 축소."""
     import base64
 
-    gif_url = encode_gif(frames, duration=duration)
+    gif_url = encode_gif(frames, duration=duration, transparent=transparent)
     b64_data = gif_url.split(",", 1)[1]
     raw = base64.b64decode(b64_data)
 
@@ -670,7 +672,7 @@ def _optimize_gif_size(frames: list[Image.Image], max_bytes: int, duration: int)
     for _ in range(max_attempts):
         new_size = (int(frames[0].width * scale), int(frames[0].height * scale))
         resized_frames = [f.resize(new_size, Image.LANCZOS) for f in frames]
-        gif_url = encode_gif(resized_frames, duration=duration)
+        gif_url = encode_gif(resized_frames, duration=duration, transparent=transparent)
         b64_data = gif_url.split(",", 1)[1]
         raw = base64.b64decode(b64_data)
         if len(raw) <= max_bytes:

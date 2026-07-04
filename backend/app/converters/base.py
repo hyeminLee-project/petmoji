@@ -25,17 +25,35 @@ def encode_image(image: Image.Image, fmt: str = "PNG") -> str:
     return f"data:{mime};base64,{b64}"
 
 
-def encode_gif(frames: list[Image.Image], duration: int = 500) -> str:
-    """Encode PIL Image frames to an animated GIF base64 data URL."""
+def encode_gif(frames: list[Image.Image], duration: int = 500, transparent: bool = False) -> str:
+    """Encode PIL Image frames to an animated GIF base64 data URL.
+
+    transparent=True면 RGBA 프레임의 알파를 GIF 투명 인덱스(255)로 변환한다.
+    """
+    if transparent:
+        converted = []
+        for frame in frames:
+            if frame.mode != "RGBA":
+                frame = frame.convert("RGBA")
+            alpha = frame.getchannel("A")
+            # 팔레트 0~254 사용, 255는 투명 인덱스로 예약
+            p = frame.convert("RGB").convert("P", palette=Image.ADAPTIVE, colors=255)
+            mask = alpha.point(lambda a: 255 if a <= 128 else 0)
+            p.paste(255, mask)
+            converted.append(p)
+        frames = converted
+
     buffer = io.BytesIO()
-    frames[0].save(
-        buffer,
-        format="GIF",
-        save_all=True,
-        append_images=frames[1:],
-        duration=duration,
-        loop=0,
-        disposal=2,
-    )
+    save_kwargs: dict = {
+        "format": "GIF",
+        "save_all": True,
+        "append_images": frames[1:],
+        "duration": duration,
+        "loop": 0,
+        "disposal": 2,
+    }
+    if transparent:
+        save_kwargs["transparency"] = 255
+    frames[0].save(buffer, **save_kwargs)
     b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
     return f"data:image/gif;base64,{b64}"
