@@ -41,7 +41,6 @@ TIER_CONFIG = {
         "accessories": ["none"],
         "backgrounds": ["white", "transparent"],
         "time_of_day": ["none"],
-        "formats": ["png"],
         "regeneration_limit": 1,
     },
     "premium": {
@@ -52,18 +51,6 @@ TIER_CONFIG = {
         "accessories": ACCESSORIES,
         "backgrounds": BACKGROUNDS,
         "time_of_day": TIME_OF_DAY,
-        "formats": [
-            "png",
-            "kakao",
-            "kakao_large_square",
-            "kakao_large_wide",
-            "kakao_large_tall",
-            "imessage",
-            "sticker",
-            "gif",
-            "wallpaper",
-            "animated",
-        ],
         "regeneration_limit": 3,
     },
     "custom": {
@@ -74,18 +61,6 @@ TIER_CONFIG = {
         "accessories": ACCESSORIES,
         "backgrounds": BACKGROUNDS,
         "time_of_day": TIME_OF_DAY,
-        "formats": [
-            "png",
-            "kakao",
-            "kakao_large_square",
-            "kakao_large_wide",
-            "kakao_large_tall",
-            "imessage",
-            "sticker",
-            "gif",
-            "wallpaper",
-            "animated",
-        ],
         "regeneration_limit": -1,  # unlimited
     },
 }
