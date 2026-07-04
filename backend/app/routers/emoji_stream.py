@@ -15,10 +15,10 @@ from app.services.caption import generate_captions
 from app.services.generator import (
     EMOTIONS,
     PROVIDERS,
-    _build_character_prompt,
-    _enhance_prompt_with_hermes,
-    _generation_semaphore,
+    build_character_prompt,
     build_prompt_suffix,
+    enhance_prompt_with_hermes,
+    generation_semaphore,
 )
 from app.utils.upload import MAX_PROMPT_LENGTH, read_and_validate_image
 
@@ -121,7 +121,7 @@ async def generate_emojis_stream(
 
         # Step 3: 이모지 병렬 생성
         generate_fn = PROVIDERS[provider]
-        base_prompt = _build_character_prompt(
+        base_prompt = build_character_prompt(
             pet_features, style, custom_prompt, accessory, background, time_of_day
         )
         emotions_to_generate = EMOTIONS[:emoji_count]
@@ -145,8 +145,8 @@ async def generate_emojis_stream(
 Expression/pose: {emotion} - {description}.
 {suffix}"""
             if enhance_with_hermes:
-                prompt = await _enhance_prompt_with_hermes(prompt)
-            async with _generation_semaphore:
+                prompt = await enhance_prompt_with_hermes(prompt)
+            async with generation_semaphore:
                 image_url = await generate_fn(prompt)
             return idx, emotion, image_url
 
