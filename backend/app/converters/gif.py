@@ -293,7 +293,6 @@ def _compute_motion(t: float, preset: MotionPreset) -> dict:
 
     elif motion == "breathe":
         # 부드러운 호흡 (이즈인아웃 사인)
-        eased = _ease_in_out_sine(t)
         dy = -preset.y_amplitude * math.sin(t * 2 * math.pi)
         dx = 0
         # 호흡: 들숨(늘어남) - 날숨(줄어듦)
@@ -347,7 +346,6 @@ def _compute_motion(t: float, preset: MotionPreset) -> dict:
 
     elif motion == "sway":
         # 좌우로 여유롭게 흔들림
-        eased = _ease_in_out_sine(math.fmod(t * 2, 1.0))
         dx = preset.x_amplitude * math.sin(t * 2 * math.pi)
         dy = -preset.y_amplitude * abs(math.sin(t * 2 * math.pi))
         rotation = preset.rotation_deg * math.sin(t * 2 * math.pi)
@@ -526,7 +524,7 @@ def _has_scene_background(img: Image.Image) -> bool:
 
 
 def _extract_background(img: Image.Image, bbox: tuple[int, int, int, int]) -> Image.Image:
-    """캐릭터 영역을 지운 배경 이미지 생성 (간단한 인페인팅)."""
+    """캐릭터 영역을 테두리 평균색 사각형으로 채운 배경 이미지 생성."""
     bg = img.copy()
     left, top, right, bottom = bbox
     edge_pixels = []
