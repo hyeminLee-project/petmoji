@@ -16,7 +16,6 @@ from fastapi.responses import StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from app.converters.base import decode_image, encode_image
 from app.graph.callbacks import SSECallback
 from app.graph.nodes import (
     detail_node,
@@ -37,7 +36,6 @@ from app.models.schemas import (
 from app.models.tiers import TierType, get_tier_config
 from app.services.caption import generate_captions
 from app.services.generator import EMOTIONS, PROVIDERS, _generation_semaphore
-from app.services.overlay import overlay_caption
 from app.utils.upload import read_and_validate_image
 
 logger = logging.getLogger(__name__)
@@ -424,11 +422,6 @@ Expression/pose: {emotion} - {description}.
 No text, no watermark, clean background."""
                 async with _generation_semaphore:
                     image_url = await generate_fn(prompt)
-                # 캡션 오버레이
-                if captions and emotion in captions and captions[emotion]:
-                    img = decode_image(image_url)
-                    img = overlay_caption(img, captions[emotion])
-                    image_url = encode_image(img)
                 return idx, emotion, image_url
 
             tasks = [
@@ -447,7 +440,13 @@ No text, no watermark, clean background."""
                     await callback.done()
                     return
 
-                emojis.append({"emotion": emotion, "image_url": image_url})
+                emojis.append(
+                    {
+                        "emotion": emotion,
+                        "image_url": image_url,
+                        "caption": captions.get(emotion, ""),
+                    }
+                )
 
                 await callback.emit(
                     "progress",
@@ -463,6 +462,7 @@ No text, no watermark, clean background."""
                     {
                         "emotion": emotion,
                         "image_url": image_url,
+                        "caption": captions.get(emotion, ""),
                         "index": idx,
                         "total": total,
                     },

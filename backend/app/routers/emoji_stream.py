@@ -9,7 +9,6 @@ from fastapi.responses import StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from app.converters.base import decode_image, encode_image
 from app.models.tiers import TIER_CONFIG, TierType
 from app.services.analyzer import analyze_pet_photo
 from app.services.caption import generate_captions
@@ -20,7 +19,6 @@ from app.services.generator import (
     _enhance_prompt_with_hermes,
     _generation_semaphore,
 )
-from app.services.overlay import overlay_caption
 from app.utils.upload import MAX_PROMPT_LENGTH, read_and_validate_image
 
 logger = logging.getLogger(__name__)
@@ -147,11 +145,6 @@ No text, no watermark, clean background."""
                 prompt = await _enhance_prompt_with_hermes(prompt)
             async with _generation_semaphore:
                 image_url = await generate_fn(prompt)
-            # 캡션 오버레이
-            if captions and emotion in captions and captions[emotion]:
-                img = decode_image(image_url)
-                img = overlay_caption(img, captions[emotion])
-                image_url = encode_image(img)
             return idx, emotion, image_url
 
         tasks = [
@@ -169,7 +162,11 @@ No text, no watermark, clean background."""
                     t.cancel()
                 return
 
-            emoji_data = {"emotion": emotion, "image_url": image_url}
+            emoji_data = {
+                "emotion": emotion,
+                "image_url": image_url,
+                "caption": captions.get(emotion, ""),
+            }
             emojis.append(emoji_data)
 
             progress = 0.1 + (0.9 * (done_count / emoji_count))
@@ -189,6 +186,7 @@ No text, no watermark, clean background."""
                 {
                     "emotion": emotion,
                     "image_url": image_url,
+                    "caption": captions.get(emotion, ""),
                     "index": idx,
                     "total": emoji_count,
                 },

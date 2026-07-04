@@ -1,55 +1,45 @@
-import type { EmojiStyle, ImageProvider, PetFeatures, EmojiResult } from "@/types/api";
-
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export interface ProgressEvent {
-  step: "analyzing" | "analyzed" | "captioning" | "generating" | "complete";
-  message: string;
-  progress: number;
-  current?: number;
-  total?: number;
-  pet_features?: PetFeatures;
+export interface ToolCallEvent {
+  tool: string;
+  input: Record<string, unknown>;
+  turn: number;
 }
 
-export interface EmojiEvent {
-  emotion: string;
-  image_url: string;
-  caption?: string;
-  index: number;
-  total: number;
+export interface ToolResultEvent {
+  tool: string;
+  success: boolean;
+  turn: number;
 }
 
-interface StreamCallbacks {
-  onProgress: (event: ProgressEvent) => void;
-  onEmoji: (emoji: EmojiEvent) => void;
-  onComplete: (data: { pet_features: PetFeatures; emojis: EmojiResult[] }) => void;
+export interface AgentCompleteEvent {
+  summary: string;
+  emojis: Array<{ emotion: string; image_url: string }>;
+  converted?: Array<{ emotion: string; image_url: string }>;
+}
+
+export interface AgentStreamCallbacks {
+  onProgress: (message: string) => void;
+  onToolCall: (event: ToolCallEvent) => void;
+  onToolResult: (event: ToolResultEvent) => void;
+  onComplete: (data: AgentCompleteEvent) => void;
   onError: (error: Error) => void;
 }
 
-/**
- * SSE 기반 이모지 생성 스트리밍
- * @returns AbortController (취소용)
- */
-export function generateEmojisStream(
+export function agentGenerate(
   file: File,
-  style: EmojiStyle,
-  emojiCount: number,
-  provider: ImageProvider,
-  customPrompt: string,
-  callbacks: StreamCallbacks,
+  prompt: string,
+  callbacks: AgentStreamCallbacks,
 ): AbortController {
   const controller = new AbortController();
 
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("style", style);
-  formData.append("emoji_count", String(emojiCount));
-  formData.append("provider", provider);
-  formData.append("custom_prompt", customPrompt);
+  formData.append("prompt", prompt);
 
   (async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/generate/stream`, {
+      const res = await fetch(`${API_BASE}/api/agent/generate`, {
         method: "POST",
         body: formData,
         signal: controller.signal,
@@ -72,7 +62,6 @@ export function generateEmojisStream(
 
         buffer += decoder.decode(value, { stream: true });
 
-        // SSE 이벤트 파싱 (더블 뉴라인으로 구분)
         const events = buffer.split("\n\n");
         buffer = events.pop() || "";
 
@@ -83,11 +72,8 @@ export function generateEmojisStream(
           let eventData = "";
 
           for (const line of eventStr.split("\n")) {
-            if (line.startsWith("event: ")) {
-              eventType = line.slice(7);
-            } else if (line.startsWith("data: ")) {
-              eventData = line.slice(6);
-            }
+            if (line.startsWith("event: ")) eventType = line.slice(7);
+            else if (line.startsWith("data: ")) eventData = line.slice(6);
           }
 
           if (!eventType || !eventData) continue;
@@ -96,13 +82,16 @@ export function generateEmojisStream(
 
           switch (eventType) {
             case "progress":
-              callbacks.onProgress(data as ProgressEvent);
+              callbacks.onProgress(data.message);
               break;
-            case "emoji":
-              callbacks.onEmoji(data as EmojiEvent);
+            case "tool_call":
+              callbacks.onToolCall(data as ToolCallEvent);
+              break;
+            case "tool_result":
+              callbacks.onToolResult(data as ToolResultEvent);
               break;
             case "complete":
-              callbacks.onComplete(data);
+              callbacks.onComplete(data as AgentCompleteEvent);
               break;
             case "error":
               callbacks.onError(new Error(data.message));
@@ -113,7 +102,7 @@ export function generateEmojisStream(
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
         callbacks.onError(
-          err instanceof Error ? err : new Error("스트리밍 연결에 실패했습니다")
+          err instanceof Error ? err : new Error("Agent 연결에 실패했습니다"),
         );
       }
     }

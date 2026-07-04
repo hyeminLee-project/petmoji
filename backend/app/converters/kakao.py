@@ -21,6 +21,7 @@ from PIL import Image
 
 from app.converters.base import decode_image
 from app.models.schemas import ConvertedEmoji, EmojiResult
+from app.services.overlay import overlay_caption
 
 DPI = (72, 72)
 PADDING = 10  # 상하좌우 여백
@@ -131,6 +132,7 @@ def convert_kakao(
     for emoji in emojis:
         img = decode_image(emoji.image_url)
         canvas = _fit_to_canvas(img, canvas_size)
+        canvas = overlay_caption(canvas, emoji.caption)
         image_url = _optimize_size(canvas, max_bytes)
 
         results.append(

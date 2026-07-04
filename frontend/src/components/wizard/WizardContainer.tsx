@@ -14,6 +14,7 @@ import type {
   Accessory,
   Background,
   TimeOfDay,
+  Tier,
 } from "@/types/api";
 import { wizardStep, wizardBack, wizardGenerate } from "@/lib/wizard-api";
 import StepIndicator from "./StepIndicator";
@@ -31,11 +32,12 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 interface Props {
   session: WizardSession;
   provider: ImageProvider;
+  tier?: Tier;
 }
 
 const STEP_ORDER: WizardStep[] = ["style", "proportion", "detail", "reference", "scene", "generate"];
 
-export default function WizardContainer({ session, provider: _provider }: Props) {
+export default function WizardContainer({ session, provider: _provider, tier = "premium" }: Props) {
   const [currentStep, setCurrentStep] = useState<WizardStep>("style");
   const [style, setStyle] = useState<EmojiStyle>("2d");
   const [proportion, setProportion] = useState<Proportion>("chibi");
@@ -167,7 +169,12 @@ export default function WizardContainer({ session, provider: _provider }: Props)
       onEmoji: (data) => {
         setPartialEmojis((prev) => [
           ...prev,
-          { emotion: data.emotion, image_url: data.image_url, index: data.index },
+          {
+            emotion: data.emotion,
+            image_url: data.image_url,
+            caption: data.caption,
+            index: data.index,
+          },
         ]);
       },
       onComplete: (data) => {
@@ -211,7 +218,7 @@ export default function WizardContainer({ session, provider: _provider }: Props)
             </h2>
           </div>
           <EmojiGrid emojis={result.emojis} />
-          <FormatSelector emojis={result.emojis} />
+          <FormatSelector emojis={result.emojis} tier={tier} />
         </div>
       ) : generating ? (
         <LoadingSpinner

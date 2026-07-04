@@ -1,6 +1,5 @@
 import type {
   WizardSession,
-  EmojiStyle,
   ImageProvider,
   Tier,
   WizardStep,
@@ -129,7 +128,13 @@ export function wizardGenerate(
   emojiCount: number,
   callbacks: {
     onProgress: (data: { step: string; message: string; progress: number }) => void;
-    onEmoji: (data: { emotion: string; image_url: string; index: number; total: number }) => void;
+    onEmoji: (data: {
+      emotion: string;
+      image_url: string;
+      caption?: string;
+      index: number;
+      total: number;
+    }) => void;
     onComplete: (data: { pet_features: PetFeatures; emojis: EmojiResult[] }) => void;
     onError: (error: Error) => void;
   }

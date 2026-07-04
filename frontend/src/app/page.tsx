@@ -20,6 +20,7 @@ import type {
 } from "@/types/api";
 import { generateEmojisStream, type ProgressEvent } from "@/lib/sse";
 import { wizardStart } from "@/lib/wizard-api";
+import Link from "next/link";
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -65,7 +66,12 @@ export default function Home() {
         onEmoji: (event) => {
           setPartialEmojis((prev) => [
             ...prev,
-            { emotion: event.emotion, image_url: event.image_url, index: event.index },
+            {
+              emotion: event.emotion,
+              image_url: event.image_url,
+              caption: event.caption,
+              index: event.index,
+            },
           ]);
         },
         onComplete: (data) => {
@@ -116,11 +122,17 @@ export default function Home() {
         <p className="text-lg text-gray-600">
           반려동물 사진 한 장으로 나만의 캐릭터 이모지 세트를 만들어보세요
         </p>
+        <Link
+          href="/agent"
+          className="inline-block mt-4 px-4 py-2 bg-gray-800 text-white text-sm rounded-full hover:bg-gray-900 transition-colors"
+        >
+          🤖 Agent 모드로 만들기
+        </Link>
       </div>
 
       {/* 위자드 모드 */}
       {wizardSession ? (
-        <WizardContainer session={wizardSession} provider={provider} />
+        <WizardContainer session={wizardSession} provider={provider} tier={tier} />
       ) : (
         <>
           {/* Upload Section */}
@@ -205,7 +217,7 @@ export default function Home() {
                 </p>
               </div>
               <EmojiGrid emojis={result.emojis} />
-              <FormatSelector emojis={result.emojis} />
+              <FormatSelector emojis={result.emojis} tier={tier} />
             </div>
           )}
         </>

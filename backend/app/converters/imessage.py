@@ -11,6 +11,7 @@ from PIL import Image
 
 from app.converters.base import decode_image, encode_image
 from app.models.schemas import ConvertedEmoji, EmojiResult
+from app.services.overlay import overlay_caption
 
 IMESSAGE_SIZE = (408, 408)  # Medium
 
@@ -29,6 +30,7 @@ def convert_imessage(emojis: list[EmojiResult]) -> list[ConvertedEmoji]:
             (IMESSAGE_SIZE[1] - img.height) // 2,
         )
         canvas.paste(img, offset, img)
+        canvas = overlay_caption(canvas, emoji.caption)
 
         results.append(
             ConvertedEmoji(

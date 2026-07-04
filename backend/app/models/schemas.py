@@ -24,6 +24,7 @@ class EmojiRequest(BaseModel):
 class EmojiResult(BaseModel):
     emotion: str
     image_url: str  # base64 data URL or file URL
+    caption: str = ""  # 캐릭터 대사 (변환 단계에서 최종 해상도로 합성)
 
 
 class ConvertedEmoji(BaseModel):

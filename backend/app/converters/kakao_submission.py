@@ -15,6 +15,7 @@ from PIL import Image
 from app.converters.base import decode_image
 from app.converters.kakao import _fit_to_canvas, _optimize_size
 from app.models.schemas import ConvertedEmoji, EmojiResult
+from app.services.overlay import overlay_caption
 
 ICON_SIZE = (78, 78)
 ICON_MAX_BYTES = 16 * 1024
@@ -99,6 +100,7 @@ def convert_kakao_submission(emojis: list[EmojiResult]) -> list[ConvertedEmoji]:
         decoded_images.append(img)
 
         canvas = _fit_to_canvas(img, EMOTICON_SIZE)
+        canvas = overlay_caption(canvas, emoji.caption)
         optimized_url = _optimize_size(canvas, EMOTICON_MAX_BYTES)
         _, b64_data = optimized_url.split(",", 1)
         png_bytes = base64.b64decode(b64_data)

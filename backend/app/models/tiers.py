@@ -62,6 +62,7 @@ TIER_CONFIG = {
             "sticker",
             "gif",
             "wallpaper",
+            "animated",
         ],
         "regeneration_limit": 3,
     },
@@ -83,6 +84,7 @@ TIER_CONFIG = {
             "sticker",
             "gif",
             "wallpaper",
+            "animated",
         ],
         "regeneration_limit": -1,  # unlimited
     },

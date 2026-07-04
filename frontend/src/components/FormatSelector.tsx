@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { ConvertFormat, EmojiResult, ConvertedEmoji } from "@/types/api";
-import { convertEmojis } from "@/lib/api";
+import type { ConvertFormat, EmojiResult, ConvertedEmoji, Tier } from "@/types/api";
+import { convertEmojis, animateEmoji } from "@/lib/api";
 
 const FORMATS: { id: ConvertFormat; icon: string; name: string; desc: string }[] = [
   { id: "kakao", icon: "💬", name: "카카오톡", desc: "360x360 (최대 32개)" },
@@ -19,12 +19,33 @@ const FORMATS: { id: ConvertFormat; icon: string; name: string; desc: string }[]
 
 interface Props {
   emojis: EmojiResult[];
+  tier?: Tier;
 }
 
-export default function FormatSelector({ emojis }: Props) {
+export default function FormatSelector({ emojis, tier = "free" }: Props) {
   const [converting, setConverting] = useState<ConvertFormat | null>(null);
   const [results, setResults] = useState<Record<string, ConvertedEmoji[]>>({});
   const [error, setError] = useState<string | null>(null);
+
+  const [animating, setAnimating] = useState<string | null>(null);
+  const [animated, setAnimated] = useState<Record<string, ConvertedEmoji>>({});
+  const [animateError, setAnimateError] = useState<string | null>(null);
+
+  const handleAnimate = async (emoji: EmojiResult) => {
+    if (animating || animated[emoji.emotion]) return;
+
+    setAnimating(emoji.emotion);
+    setAnimateError(null);
+
+    try {
+      const result = await animateEmoji(emoji, tier);
+      setAnimated((prev) => ({ ...prev, [emoji.emotion]: result }));
+    } catch (err) {
+      setAnimateError(err instanceof Error ? err.message : "생성 실패");
+    } finally {
+      setAnimating(null);
+    }
+  };
 
   const handleConvert = async (format: ConvertFormat) => {
     if (results[format]) return; // 이미 변환됨
@@ -48,7 +69,7 @@ export default function FormatSelector({ emojis }: Props) {
     if (emoji.format === "kakao_submission") {
       link.download = "petmoji-kakao-submission.zip";
     } else {
-      const ext = emoji.format === "gif" ? "gif" : "png";
+      const ext = emoji.format === "gif" || emoji.format === "animated" ? "gif" : "png";
       link.download = `petmoji-${emoji.format}-${emoji.emotion}.${ext}`;
     }
     link.click();
@@ -98,6 +119,66 @@ export default function FormatSelector({ emojis }: Props) {
           {error}
         </div>
       )}
+
+      {/* 움직이는 이모지 (AI 영상 생성) */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="font-semibold text-gray-700">🎬 움직이는 이모지 (AI)</h4>
+          <span className="text-xs text-gray-400">개당 1~2분 소요</span>
+        </div>
+
+        {tier === "free" ? (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center text-sm text-gray-500">
+            🔒 프리미엄 티어 전용 기능입니다
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {emojis.map((emoji) => {
+              const done = animated[emoji.emotion];
+              const isRunning = animating === emoji.emotion;
+              return (
+                <div
+                  key={`animate-${emoji.emotion}`}
+                  className="group relative bg-gray-50 rounded-lg p-2 text-center"
+                >
+                  <img
+                    src={done ? done.image_url : emoji.image_url}
+                    alt={emoji.emotion}
+                    className="w-full aspect-square object-contain rounded-lg mb-1"
+                  />
+                  <p className="text-xs text-gray-600 mb-1">{emoji.emotion}</p>
+                  {done ? (
+                    <button
+                      onClick={() => handleDownload(done)}
+                      className="w-full py-1 text-xs bg-green-100 text-green-700 rounded-lg cursor-pointer"
+                    >
+                      ✅ 완료 · 다운로드
+                    </button>
+                  ) : isRunning ? (
+                    <div className="w-full py-1 text-xs bg-orange-100 text-orange-600 rounded-lg animate-pulse">
+                      생성 중... (1~2분)
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleAnimate(emoji)}
+                      disabled={animating !== null}
+                      className="w-full py-1 text-xs bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      ▶ 움직이기
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {animateError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 mt-3 text-red-700 text-sm text-center">
+            {animateError}
+          </div>
+        )}
+      </div>
 
       {/* Converted results */}
       {Object.entries(results).map(([format, convertedEmojis]) => (
