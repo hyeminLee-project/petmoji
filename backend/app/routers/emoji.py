@@ -69,7 +69,7 @@ async def generate_emojis(
         raise HTTPException(status_code=500, detail="사진 분석 중 오류가 발생했습니다") from e
 
     try:
-        # Step 2: Generate emoji set with GPT-4o
+        # Step 2: 선택한 이미지 프로바이더(gpt-image-1 / imagen)로 이모지 세트 생성
         emojis = await generate_emoji_set(
             pet_features,
             style,

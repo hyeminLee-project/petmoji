@@ -80,12 +80,13 @@ def _sanitize_custom_prompt(prompt: str) -> str:
     return prompt
 
 
+# 스타일 설명 정본 — 무료 플로우와 위자드(graph/prompts.py)가 공유
 STYLE_DESCRIPTIONS = {
     "2d": "clean 2D vector art style, flat colors, bold outlines, like Kakao Friends or LINE stickers",
     "3d": "cute 3D rendered style, soft lighting, clay/vinyl figure look, like Pop Mart figurines",
-    "watercolor": "soft watercolor painting style, gentle brushstrokes, pastel tones",
-    "pixel": "retro pixel art style, 16-bit game aesthetic, crisp pixels",
-    "realistic": "semi-realistic illustration style, detailed fur textures, soft shading",
+    "watercolor": "soft watercolor painting style, gentle brush strokes, pastel colors, dreamy atmosphere",
+    "pixel": "pixel art style, 32x32 retro game character, limited color palette, crisp edges",
+    "realistic": "photorealistic digital painting, real fur texture, natural proportions, studio lighting",
 }
 
 ACCESSORY_DESCRIPTIONS = {
@@ -247,6 +248,18 @@ PROVIDERS = {
 }
 
 
+def build_prompt_suffix(background: str = "white") -> str:
+    """생성 프롬프트 공통 접미사.
+
+    장면 배경(공원, 카페 등)을 요청한 경우 'Clean background' 지시를 생략해
+    배경 설정과 모순되지 않게 한다.
+    """
+    suffix = "No text, no watermark."
+    if background in ("white", "transparent", "gradient"):
+        suffix += " Clean background."
+    return suffix
+
+
 async def generate_emoji_set(
     features: PetFeatures,
     style: str = "2d",
@@ -273,7 +286,7 @@ async def generate_emoji_set(
         time_of_day,
     )
 
-    has_scene_bg = background not in PLAIN_BACKGROUNDS
+    suffix = build_prompt_suffix(background)
 
     emotions_to_generate = EMOTIONS[:emoji_count]
 
@@ -283,10 +296,6 @@ async def generate_emoji_set(
         captions = await generate_captions(emotions_to_generate, features, provider)
 
     async def _generate_one(emotion: str, description: str) -> EmojiResult:
-        suffix = "No text, no watermark."
-        if not has_scene_bg:
-            suffix += " Clean background."
-
         prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
 {suffix}"""
