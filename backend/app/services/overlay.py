@@ -14,6 +14,9 @@ _FONT_PATH = Path(__file__).parent.parent / "assets" / "fonts" / "NotoSansKR-Bol
 _TEXT_COLOR = (30, 30, 30, 255)  # 거의 검정 본문
 _STROKE_COLOR = (255, 255, 255, 255)  # 흰색 테두리
 _MARGIN_TOP = 20  # 이미지 상단으로부터의 여백
+_MAX_TEXT_RATIO = 0.9  # 텍스트 최대 폭 (이미지 폭 대비)
+_LINE_SPACING = 1.15
+_MAX_LINES = 2
 
 
 def _load_font(size: int) -> ImageFont.FreeTypeFont:
@@ -24,11 +27,55 @@ def _load_font(size: int) -> ImageFont.FreeTypeFont:
         return ImageFont.load_default()
 
 
+def _text_width(draw: ImageDraw.ImageDraw, text: str, font, stroke_width: int) -> int:
+    bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
+    return bbox[2] - bbox[0]
+
+
+def _split_two_lines(caption: str) -> list[str]:
+    """중앙에 가장 가까운 공백에서 두 줄로 분할. 공백이 없으면 글자 중간에서 분할."""
+    spaces = [i for i, ch in enumerate(caption) if ch == " "]
+    if spaces:
+        split = min(spaces, key=lambda i: abs(i - len(caption) // 2))
+        return [caption[:split], caption[split + 1 :]]
+    mid = len(caption) // 2
+    return [caption[:mid], caption[mid:]]
+
+
+def _fit_caption_lines(
+    draw: ImageDraw.ImageDraw, caption: str, width: int
+) -> tuple[list[str], ImageFont.FreeTypeFont, int]:
+    """캡션을 최대 2줄에 맞추고, 넘치면 폰트를 줄여가며 맞춘다.
+
+    Returns:
+        (줄 목록, 폰트, 스트로크 폭)
+    """
+    max_width = int(width * _MAX_TEXT_RATIO)
+    font_size = max(22, width // 13)
+    min_font_size = max(16, width // 20)
+
+    while True:
+        font = _load_font(font_size)
+        stroke_width = max(3, font_size // 6)
+
+        if _text_width(draw, caption, font, stroke_width) <= max_width:
+            return [caption], font, stroke_width
+
+        lines = _split_two_lines(caption)
+        if all(_text_width(draw, line, font, stroke_width) <= max_width for line in lines):
+            return lines, font, stroke_width
+
+        if font_size <= min_font_size:
+            return lines, font, stroke_width
+        font_size = max(min_font_size, int(font_size * 0.9))
+
+
 def render_caption_layer(size: tuple[int, int], caption: str) -> Image.Image | None:
     """캡션 텍스트만 그린 투명 레이어를 생성한다.
 
     최종 출력 해상도에서 직접 렌더링하므로 리샘플링 없이 선명하다.
     GIF처럼 여러 프레임에 같은 캡션을 합성할 때 재사용한다.
+    긴 대사는 최대 2줄로 감싸고, 그래도 넘치면 폰트를 축소한다.
 
     Args:
         size: 레이어 크기 (최종 출력 해상도)
@@ -41,28 +88,24 @@ def render_caption_layer(size: tuple[int, int], caption: str) -> Image.Image | N
         return None
 
     width, _ = size
-    # 이미지 크기에 비례하는 폰트 크기 (360px → ~28px, 256px → ~22px)
-    font_size = max(22, width // 13)
-    font = _load_font(font_size)
-    stroke_width = max(3, font_size // 6)
-
     text_layer = Image.new("RGBA", size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(text_layer)
 
-    # 텍스트 크기 측정 (스트로크 포함) → 상단 중앙 배치
-    text_bbox = draw.textbbox((0, 0), caption, font=font, stroke_width=stroke_width)
-    text_w = text_bbox[2] - text_bbox[0]
-    text_x = (width - text_w) // 2
-    text_y = _MARGIN_TOP
+    lines, font, stroke_width = _fit_caption_lines(draw, caption, width)
+    line_height = int(font.size * _LINE_SPACING)
 
-    draw.text(
-        (text_x, text_y),
-        caption,
-        font=font,
-        fill=_TEXT_COLOR,
-        stroke_width=stroke_width,
-        stroke_fill=_STROKE_COLOR,
-    )
+    y = _MARGIN_TOP
+    for line in lines[:_MAX_LINES]:
+        text_w = _text_width(draw, line, font, stroke_width)
+        draw.text(
+            ((width - text_w) // 2, y),
+            line,
+            font=font,
+            fill=_TEXT_COLOR,
+            stroke_width=stroke_width,
+            stroke_fill=_STROKE_COLOR,
+        )
+        y += line_height
 
     return text_layer
 

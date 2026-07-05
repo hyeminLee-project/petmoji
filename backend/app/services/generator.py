@@ -102,6 +102,9 @@ ACCESSORY_DESCRIPTIONS = {
     "headband": "wearing a cute headband with ears",
 }
 
+# 장면이 없는 단색/패턴 배경 (이 목록에 없으면 장면 배경으로 취급)
+PLAIN_BACKGROUNDS = ("white", "transparent", "gradient")
+
 BACKGROUND_DESCRIPTIONS = {
     "white": "on a clean white background",
     "transparent": "on a clean white background",
