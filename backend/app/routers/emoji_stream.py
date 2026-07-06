@@ -1,6 +1,5 @@
 """SSE 기반 이모지 생성 스트리밍 엔드포인트"""
 
-import asyncio
 import json
 import logging
 
@@ -11,14 +10,12 @@ from slowapi.util import get_remote_address
 
 from app.models.tiers import TIER_CONFIG, TierType
 from app.services.analyzer import analyze_pet_photo
-from app.services.caption import generate_captions
+from app.services.generation_stream import fetch_captions_safe, stream_emoji_generation
 from app.services.generator import (
     EMOTIONS,
     PROVIDERS,
     build_character_prompt,
     build_prompt_suffix,
-    enhance_prompt_with_hermes,
-    generation_semaphore,
 )
 from app.utils.upload import MAX_PROMPT_LENGTH, read_and_validate_image
 
@@ -104,6 +101,7 @@ async def generate_emojis_stream(
         )
 
         # Step 2: 캡션 생성
+        emotions_to_generate = EMOTIONS[:emoji_count]
         captions: dict[str, str] = {}
         if add_captions:
             yield _sse_event(
@@ -114,18 +112,12 @@ async def generate_emojis_stream(
                     "progress": 0.08,
                 },
             )
-            try:
-                captions = await generate_captions(EMOTIONS[:emoji_count], pet_features, provider)
-            except Exception:
-                logger.warning("Caption generation failed, continuing without captions")
+            captions = await fetch_captions_safe(emotions_to_generate, pet_features, provider)
 
-        # Step 3: 이모지 병렬 생성
-        generate_fn = PROVIDERS[provider]
+        # Step 3: 이모지 병렬 생성 (공통 스트리밍 코어)
         base_prompt = build_character_prompt(
             pet_features, style, custom_prompt, accessory, background, time_of_day
         )
-        emotions_to_generate = EMOTIONS[:emoji_count]
-        emojis = []
 
         yield _sse_event(
             "progress",
@@ -138,67 +130,24 @@ async def generate_emojis_stream(
             },
         )
 
-        suffix = build_prompt_suffix(background)
-
-        async def _gen(idx: int, emotion: str, description: str) -> tuple[int, str, str]:
-            prompt = f"""{base_prompt}
-Expression/pose: {emotion} - {description}.
-{suffix}"""
-            if enhance_with_hermes:
-                prompt = await enhance_prompt_with_hermes(prompt)
-            async with generation_semaphore:
-                image_url = await generate_fn(prompt)
-            return idx, emotion, image_url
-
-        tasks = [
-            asyncio.ensure_future(_gen(i, emotion, desc))
-            for i, (emotion, desc) in enumerate(emotions_to_generate)
-        ]
-
-        for done_count, coro in enumerate(asyncio.as_completed(tasks), 1):
-            try:
-                idx, emotion, image_url = await coro
-            except Exception:
-                logger.exception("Emoji generation failed")
-                yield _sse_event("error", {"message": "이모지 생성 실패"})
-                for t in tasks:
-                    t.cancel()
+        emojis: list[dict] = []
+        generation = stream_emoji_generation(
+            base_prompt=base_prompt,
+            suffix=build_prompt_suffix(background),
+            emotions=emotions_to_generate,
+            generate_fn=PROVIDERS[provider],
+            captions=captions,
+            enhance_with_hermes=enhance_with_hermes,
+            progress_start=0.1,
+        )
+        async for event, payload in generation:
+            if event == "done":
+                emojis = payload["emojis"]
+                continue
+            yield _sse_event(event, payload)
+            if event == "error":
                 return
 
-            emoji_data = {
-                "emotion": emotion,
-                "image_url": image_url,
-                "caption": captions.get(emotion, ""),
-            }
-            emojis.append(emoji_data)
-
-            progress = 0.1 + (0.9 * (done_count / emoji_count))
-            yield _sse_event(
-                "progress",
-                {
-                    "step": "generating",
-                    "message": f"이모지 생성 중 ({done_count}/{emoji_count})...",
-                    "progress": round(progress, 2),
-                    "current": done_count,
-                    "total": emoji_count,
-                },
-            )
-
-            yield _sse_event(
-                "emoji",
-                {
-                    "emotion": emotion,
-                    "image_url": image_url,
-                    "caption": captions.get(emotion, ""),
-                    "index": idx,
-                    "total": emoji_count,
-                },
-            )
-
-        # 원래 순서로 정렬
-        emojis.sort(key=lambda e: [em for em, _ in emotions_to_generate].index(e["emotion"]))
-
-        # 완료
         yield _sse_event(
             "complete",
             {
