@@ -1,4 +1,5 @@
 import type { EmojiResult } from "@/types/api";
+import CaptionBadge from "./CaptionBadge";
 
 // 감정 32종 — 백엔드 generator.py의 EMOTIONS와 키가 1:1로 일치해야 함
 const EMOTION_LABELS: Record<string, string> = {
@@ -72,17 +73,7 @@ export default function EmojiGrid({ emojis }: Props) {
                 alt={emoji.emotion}
                 className="w-full aspect-square object-cover rounded-lg mb-2"
               />
-              {emoji.caption && (
-                <span
-                  className="absolute top-1.5 left-0 right-0 text-center font-extrabold text-gray-900 text-base leading-tight pointer-events-none"
-                  style={{
-                    textShadow:
-                      "-2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 2px 2px 0 #fff, 0 -2px 0 #fff, 0 2px 0 #fff, -2px 0 0 #fff, 2px 0 0 #fff",
-                  }}
-                >
-                  {emoji.caption}
-                </span>
-              )}
+              <CaptionBadge caption={emoji.caption} />
             </div>
             <p className="text-sm font-medium text-gray-700">
               {EMOTION_LABELS[emoji.emotion] || emoji.emotion}

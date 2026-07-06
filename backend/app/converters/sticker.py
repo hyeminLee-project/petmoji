@@ -4,6 +4,7 @@
 외곽에 흰색 테두리를 추가하여 스티커 느낌 강화.
 """
 
+import numpy as np
 from PIL import Image, ImageFilter
 
 from app.converters.base import decode_image, encode_image
@@ -16,39 +17,26 @@ BORDER_WIDTH = 8
 
 def _remove_white_background(img: Image.Image, threshold: int = 240) -> Image.Image:
     """Remove white-ish background pixels by making them transparent."""
-    img = img.convert("RGBA")
-    pixels = img.load()
-
-    for y in range(img.height):
-        for x in range(img.width):
-            r, g, b, a = pixels[x, y]
-            if r > threshold and g > threshold and b > threshold:
-                pixels[x, y] = (r, g, b, 0)
-
-    return img
+    arr = np.array(img.convert("RGBA"))
+    white = (arr[..., :3] > threshold).all(axis=2)
+    arr[white, 3] = 0
+    return Image.fromarray(arr)
 
 
 def _add_sticker_border(img: Image.Image, border_width: int = BORDER_WIDTH) -> Image.Image:
     """Add a white outline border around non-transparent pixels."""
-    # Create mask from alpha channel
     alpha = img.split()[3]
-    # Expand the mask
     expanded = alpha.filter(ImageFilter.MaxFilter(border_width * 2 + 1))
 
-    # Create white border layer
-    border_layer = Image.new("RGBA", img.size, (255, 255, 255, 0))
-    border_pixels = border_layer.load()
-    exp_pixels = expanded.load()
-    alpha_pixels = alpha.load()
+    # 확장 마스크에는 있지만 원본은 투명한 픽셀 = 테두리 영역
+    alpha_arr = np.array(alpha)
+    border_mask = (np.array(expanded) > 0) & (alpha_arr == 0)
 
-    for y in range(img.height):
-        for x in range(img.width):
-            if exp_pixels[x, y] > 0 and alpha_pixels[x, y] == 0:
-                border_pixels[x, y] = (255, 255, 255, 255)
+    border_arr = np.zeros((*alpha_arr.shape, 4), dtype=np.uint8)
+    border_arr[border_mask] = (255, 255, 255, 255)
 
     # Composite: border behind original
-    result = Image.alpha_composite(border_layer, img)
-    return result
+    return Image.alpha_composite(Image.fromarray(border_arr), img)
 
 
 def convert_sticker(emojis: list[EmojiResult]) -> list[ConvertedEmoji]:

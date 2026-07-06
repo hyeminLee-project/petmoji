@@ -1,4 +1,5 @@
 import type { EmojiResult } from "@/types/api";
+import CaptionBadge from "./CaptionBadge";
 
 interface Props {
   step?: string;
@@ -72,17 +73,7 @@ export default function LoadingSpinner({
                     alt={emoji.emotion}
                     className="w-full aspect-square object-cover rounded-lg mb-1"
                   />
-                  {emoji.caption && (
-                    <span
-                      className="absolute top-1 left-0 right-0 text-center font-extrabold text-gray-900 text-xs leading-tight pointer-events-none"
-                      style={{
-                        textShadow:
-                          "-1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff",
-                      }}
-                    >
-                      {emoji.caption}
-                    </span>
-                  )}
+                  <CaptionBadge caption={emoji.caption} size="sm" />
                 </div>
                 <p className="text-xs text-gray-500">{emoji.emotion}</p>
               </div>
