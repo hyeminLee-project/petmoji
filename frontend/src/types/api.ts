@@ -50,12 +50,24 @@ export interface DetailOptions {
   background: "white" | "transparent" | "gradient";
 }
 
+/** 티어별 설정 — 백엔드 tiers.py의 TIER_CONFIG와 동일 구조 */
+export interface TierConfig {
+  styles: string[];
+  max_emotions: number;
+  guided_wizard: boolean;
+  custom_prompt: boolean;
+  accessories: string[];
+  backgrounds: string[];
+  time_of_day: string[];
+  regeneration_limit: number;
+}
+
 /** 위자드 세션 */
 export interface WizardSession {
   session_id: string;
   session_token: string;
   pet_features: PetFeatures;
-  tier_config: Record<string, unknown>;
+  tier_config: TierConfig;
 }
 
 /** AI 이미지 생성 provider */
