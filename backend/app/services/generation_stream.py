@@ -9,30 +9,13 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 
-from app.models.schemas import PetFeatures
-from app.services.caption import generate_captions
 from app.services.generator import enhance_prompt_with_hermes, generation_semaphore
 
 logger = logging.getLogger(__name__)
 
 GenerateFn = Callable[[str], Awaitable[str]]
-
-
-async def fetch_captions_safe(
-    emotions: list[tuple[str, str]],
-    pet_features: dict | PetFeatures | None,
-    provider: str,
-) -> dict[str, str]:
-    """캡션 일괄 생성. 실패하거나 특징 정보가 없으면 빈 딕셔너리로 계속 진행."""
-    if not pet_features:
-        return {}
-    try:
-        if isinstance(pet_features, dict):
-            pet_features = PetFeatures(**pet_features)
-        return await generate_captions(emotions, pet_features, provider)
-    except Exception:
-        logger.exception("Caption generation failed, continuing without captions")
-        return {}
+# (image_url, emotion) → caption. 생성된 그림을 보고 대사를 쓰는 비전 캡셔너
+CaptionFn = Callable[[str, str], Awaitable[str]]
 
 
 async def stream_emoji_generation(
@@ -40,7 +23,7 @@ async def stream_emoji_generation(
     suffix: str,
     emotions: list[tuple[str, str]],
     generate_fn: GenerateFn,
-    captions: dict[str, str],
+    caption_fn: CaptionFn | None = None,
     enhance_with_hermes: bool = False,
     progress_start: float = 0.0,
 ) -> AsyncIterator[tuple[str, dict]]:
@@ -52,12 +35,13 @@ async def stream_emoji_generation(
     - ("done", {"emojis": [...]}) — 원래 감정 순서로 정렬된 최종 목록
 
     Args:
+        caption_fn: 생성된 그림을 보고 대사를 쓰는 비전 캡셔너 (None이면 캡션 없음)
         progress_start: 진행률 시작점 (선행 단계가 차지한 구간, 무료 스트림은 0.1)
     """
     total = len(emotions)
     emojis: list[dict] = []
 
-    async def _generate_one(idx: int, emotion: str, description: str) -> tuple[int, str, str]:
+    async def _generate_one(idx: int, emotion: str, description: str) -> tuple[int, str, str, str]:
         prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
 {suffix}"""
@@ -65,7 +49,9 @@ Expression/pose: {emotion} - {description}.
             prompt = await enhance_prompt_with_hermes(prompt)
         async with generation_semaphore:
             image_url = await generate_fn(prompt)
-        return idx, emotion, image_url
+        # 비전 캡션은 세마포어 밖에서 — 이미지 생성 슬롯을 오래 점유하지 않도록
+        caption = await caption_fn(image_url, emotion) if caption_fn else ""
+        return idx, emotion, image_url, caption
 
     tasks = [
         asyncio.ensure_future(_generate_one(i, emotion, desc))
@@ -74,7 +60,7 @@ Expression/pose: {emotion} - {description}.
 
     for done_count, coro in enumerate(asyncio.as_completed(tasks), 1):
         try:
-            idx, emotion, image_url = await coro
+            idx, emotion, image_url, caption = await coro
         except Exception:
             logger.exception("Emoji generation failed")
             for task in tasks:
@@ -85,7 +71,7 @@ Expression/pose: {emotion} - {description}.
         emoji_data = {
             "emotion": emotion,
             "image_url": image_url,
-            "caption": captions.get(emotion, ""),
+            "caption": caption,
         }
         emojis.append(emoji_data)
 

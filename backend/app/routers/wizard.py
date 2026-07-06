@@ -35,7 +35,8 @@ from app.models.schemas import (
     WizardStepRequest,
 )
 from app.models.tiers import TierType, get_tier_config
-from app.services.generation_stream import fetch_captions_safe, stream_emoji_generation
+from app.services.caption import generate_caption_for_image
+from app.services.generation_stream import stream_emoji_generation
 from app.services.generator import EMOTIONS, PROVIDERS, build_prompt_suffix
 from app.utils.upload import read_and_validate_image
 
@@ -391,17 +392,16 @@ async def wizard_generate(
                 time_of_day=state.get("time_of_day", "none"),
             )
 
-            await callback.emit(
-                "progress",
-                {
-                    "step": "captioning",
-                    "message": "캐릭터 대사를 만들고 있어요...",
-                    "progress": 0.05,
-                },
-            )
-            captions = await fetch_captions_safe(
-                emotions_to_generate, state.get("pet_features"), provider
-            )
+            # 캡션은 완성된 그림을 보고 이미지별로 작성 (비전 캡셔너)
+            pet_features = state.get("pet_features") or {}
+
+            caption_fn = None
+            if pet_features:
+
+                async def caption_fn(image_url: str, emotion: str) -> str:
+                    return await generate_caption_for_image(
+                        image_url, emotion, pet_features, provider
+                    )
 
             emojis: list[dict] = []
             generation = stream_emoji_generation(
@@ -409,7 +409,7 @@ async def wizard_generate(
                 suffix=build_prompt_suffix(state.get("scene_background", "white")),
                 emotions=emotions_to_generate,
                 generate_fn=PROVIDERS[provider],
-                captions=captions,
+                caption_fn=caption_fn,
             )
             async for event, payload in generation:
                 if event == "done":

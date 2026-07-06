@@ -104,6 +104,43 @@ CAPTION_USER_PROMPT = """다음 감정 목록에 대한 캐릭터 대사를 만�
 
 각 항목을 emotion(감정 키)과 caption(대사) 필드로 반환해."""
 
+# 비전 캡션: 생성된 그림을 직접 보고 대사를 쓴다 (그림-감정-대사 일치)
+VISION_CAPTION_SYSTEM_PROMPT = """너는 귀여운 {animal_type}({breed}) 캐릭터야.
+성격: {vibe}
+
+주어진 이모티콘 그림을 보고, 카카오톡에서 이 이모티콘을 보내는 사람이
+"대신 하고 싶은 말"을 한 줄 만들어줘.
+
+규칙:
+- 그림 속 표정·포즈·소품(음식, 이불, 선글라스, 하트 등)이 대사에 자연스럽게 묻어나야 해
+- 4~12자, 상황이 그려지는 대사 ("흑흑...", "신난다!" 같은 단편적 감탄사 금지)
+- 캐릭터 성격에 맞는 말투 (반말/존댓말/도도/애교 중 하나)
+- 특수문자는 양념으로만 (♥ ! ? ~ ... ㅋㅋ ㅠㅠ)
+- caption 필드 하나로 반환
+
+감정 힌트: {emotion}"""
+
+VISION_CAPTION_USER_PROMPT = "이 그림에 어울리는 대사 한 줄을 만들어줘."
+
+GEMINI_SINGLE_CAPTION_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {"caption": {"type": "STRING"}},
+    "required": ["caption"],
+}
+OPENAI_SINGLE_CAPTION_FORMAT = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "caption",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {"caption": {"type": "string"}},
+            "required": ["caption"],
+            "additionalProperties": False,
+        },
+    },
+}
+
 # 셀프 교정: 맞춤법 실수만 고치고 의도적 구어체는 보존, 감정 불일치는 REJECT
 PROOFREAD_REJECT = "REJECT"
 
@@ -259,6 +296,108 @@ async def _generate_with_hermes(system: str, user: str) -> str:
         return response.json()["message"]["content"]
 
 
+def fallback_caption(emotion: str) -> str:
+    """사람이 검수한 fallback 사전에서 랜덤 선택."""
+    return random.choice(CAPTION_FALLBACKS.get(emotion, [""]))
+
+
+def _decode_image_data_url(image_data_url: str) -> tuple[bytes, str]:
+    """data URL에서 (bytes, mime_type) 추출."""
+    header, b64_data = image_data_url.split(",", 1)
+    mime_type = header.split(":", 1)[1].split(";", 1)[0]
+    import base64
+
+    return base64.b64decode(b64_data), mime_type
+
+
+async def _vision_caption_with_gemini(image_data_url: str, system: str) -> str:
+    """Gemini 비전으로 그림을 보고 단일 캡션 생성."""
+    from google import genai
+    from google.genai import types
+
+    image_bytes, mime_type = _decode_image_data_url(image_data_url)
+    client = genai.Client()
+    response = await client.aio.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[
+            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+            VISION_CAPTION_USER_PROMPT,
+        ],
+        config=types.GenerateContentConfig(
+            system_instruction=system,
+            temperature=0.8,
+            max_output_tokens=256,
+            response_mime_type="application/json",
+            response_schema=GEMINI_SINGLE_CAPTION_SCHEMA,
+            # 짧은 대사 하나에 사고 토큰이 출력 예산을 소진하지 않도록 thinking 비활성화
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        ),
+    )
+    return response.text or ""
+
+
+async def _vision_caption_with_openai(image_data_url: str, system: str) -> str:
+    """OpenAI 비전(gpt-4o-mini)으로 그림을 보고 단일 캡션 생성."""
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI()
+    response = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": image_data_url}},
+                    {"type": "text", "text": VISION_CAPTION_USER_PROMPT},
+                ],
+            },
+        ],
+        temperature=0.8,
+        max_tokens=256,
+        response_format=OPENAI_SINGLE_CAPTION_FORMAT,
+    )
+    return response.choices[0].message.content or ""
+
+
+async def generate_caption_for_image(
+    image_data_url: str,
+    emotion: str,
+    features: PetFeatures | dict,
+    provider: str = "gemini",
+) -> str:
+    """생성된 이모지 그림을 보고 어울리는 대사를 만든다.
+
+    그림 속 표정·포즈·소품을 반영하므로 감정 라벨만 보는 배치 생성보다
+    그림-대사 일치도가 높다. 실패하거나 검증에 탈락하면 fallback 사용.
+    """
+    if isinstance(features, dict):
+        features = PetFeatures(**features)
+
+    system = VISION_CAPTION_SYSTEM_PROMPT.format(
+        animal_type=features.animal_type,
+        breed=features.breed,
+        vibe=features.overall_vibe,
+        emotion=emotion,
+    )
+
+    try:
+        if provider == "openai":
+            raw = await _vision_caption_with_openai(image_data_url, system)
+        else:
+            raw = await _vision_caption_with_gemini(image_data_url, system)
+        caption = json.loads(raw).get("caption", "")
+    except Exception:
+        logger.warning("Vision caption failed for %s, using fallback", emotion)
+        caption = ""
+
+    if caption and validate_caption(caption):
+        return caption
+    if caption:
+        logger.info("Vision caption rejected for %s: %r", emotion, caption)
+    return fallback_caption(emotion)
+
+
 async def _proofread_captions(captions: dict[str, str], provider: str) -> dict[str, str]:
     """LLM 셀프 교정: 맞춤법 실수만 수정하고 감정 불일치 대사는 비운다.
 
@@ -343,7 +482,6 @@ async def generate_captions(
         else:
             if generated:
                 logger.info("Caption rejected for %s: %r, using fallback", emotion, generated)
-            fallbacks = CAPTION_FALLBACKS.get(emotion, [""])
-            result[emotion] = random.choice(fallbacks)
+            result[emotion] = fallback_caption(emotion)
 
     return result

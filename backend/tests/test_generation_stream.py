@@ -15,13 +15,16 @@ async def test_emits_progress_emoji_pairs_and_done():
     async def fake_generate(prompt: str) -> str:
         return "data:image/png;base64,xxx"
 
+    async def fake_caption(image_url: str, emotion: str) -> str:
+        return "좋아!" if emotion == "happy" else ""
+
     events = await _collect(
         stream_emoji_generation(
             base_prompt="base",
             suffix="No text.",
             emotions=EMOTIONS,
             generate_fn=fake_generate,
-            captions={"happy": "좋아!"},
+            caption_fn=fake_caption,
         )
     )
 
@@ -32,6 +35,23 @@ async def test_emits_progress_emoji_pairs_and_done():
     assert [e["emotion"] for e in done_payload["emojis"]] == ["happy", "sad", "angry"]
     assert done_payload["emojis"][0]["caption"] == "좋아!"
     assert done_payload["emojis"][1]["caption"] == ""
+
+
+async def test_no_caption_fn_yields_empty_captions():
+    """caption_fn 미지정 시 캡션 없이 생성"""
+
+    async def fake_generate(prompt: str) -> str:
+        return "data:x"
+
+    events = await _collect(
+        stream_emoji_generation(
+            base_prompt="base",
+            suffix="s",
+            emotions=EMOTIONS[:1],
+            generate_fn=fake_generate,
+        )
+    )
+    assert events[-1][1]["emojis"][0]["caption"] == ""
 
 
 async def test_progress_respects_start_offset():
@@ -46,7 +66,6 @@ async def test_progress_respects_start_offset():
             suffix="s",
             emotions=EMOTIONS[:2],
             generate_fn=fake_generate,
-            captions={},
             progress_start=0.1,
         )
     )
@@ -66,7 +85,6 @@ async def test_generation_failure_yields_error_and_stops():
             suffix="s",
             emotions=EMOTIONS,
             generate_fn=failing_generate,
-            captions={},
         )
     )
     assert events[-1][0] == "error"
@@ -87,7 +105,6 @@ async def test_prompt_includes_emotion_and_suffix():
             suffix="SUFFIX",
             emotions=[("happy", "smiling big")],
             generate_fn=capture_generate,
-            captions={},
         )
     )
     assert len(seen_prompts) == 1

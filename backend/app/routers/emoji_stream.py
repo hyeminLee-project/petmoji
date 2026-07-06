@@ -10,7 +10,8 @@ from slowapi.util import get_remote_address
 
 from app.models.tiers import TIER_CONFIG, TierType
 from app.services.analyzer import analyze_pet_photo
-from app.services.generation_stream import fetch_captions_safe, stream_emoji_generation
+from app.services.caption import generate_caption_for_image
+from app.services.generation_stream import stream_emoji_generation
 from app.services.generator import (
     EMOTIONS,
     PROVIDERS,
@@ -100,24 +101,17 @@ async def generate_emojis_stream(
             },
         )
 
-        # Step 2: 캡션 생성
+        # Step 2: 이모지 병렬 생성 (캡션은 완성된 그림을 보고 이미지별로 작성)
         emotions_to_generate = EMOTIONS[:emoji_count]
-        captions: dict[str, str] = {}
-        if add_captions:
-            yield _sse_event(
-                "progress",
-                {
-                    "step": "captioning",
-                    "message": "캐릭터 대사를 만들고 있어요...",
-                    "progress": 0.08,
-                },
-            )
-            captions = await fetch_captions_safe(emotions_to_generate, pet_features, provider)
-
-        # Step 3: 이모지 병렬 생성 (공통 스트리밍 코어)
         base_prompt = build_character_prompt(
             pet_features, style, custom_prompt, accessory, background, time_of_day
         )
+
+        caption_fn = None
+        if add_captions:
+
+            async def caption_fn(image_url: str, emotion: str) -> str:
+                return await generate_caption_for_image(image_url, emotion, pet_features, provider)
 
         yield _sse_event(
             "progress",
@@ -136,7 +130,7 @@ async def generate_emojis_stream(
             suffix=build_prompt_suffix(background),
             emotions=emotions_to_generate,
             generate_fn=PROVIDERS[provider],
-            captions=captions,
+            caption_fn=caption_fn,
             enhance_with_hermes=enhance_with_hermes,
             progress_start=0.1,
         )
