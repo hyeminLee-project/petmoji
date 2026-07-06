@@ -13,8 +13,29 @@ from app.models.schemas import PetFeatures
 
 logger = logging.getLogger(__name__)
 
-# LLM이 만든 캡션 허용 최대 길이 (초과 시 fallback 사용, 오버레이는 2줄까지 렌더)
+# LLM이 만든 캡션 허용 길이 (벗어나면 fallback 사용, 오버레이는 2줄까지 렌더)
+MIN_CAPTION_LENGTH = 4
 MAX_CAPTION_LENGTH = 14
+
+# 캡션 허용 문자: 한글 음절, 관용 낱자(ㅋㅎㅠㅜㅡ), 숫자, 영문(zzZ 등), 공백, 허용 특수문자.
+# 한자·가나·이모지·깨진 자모(ㅏ, ㄴ 단독 등)는 여기서 걸러진다.
+_CAPTION_ALLOWED = re.compile(r"^[가-힣ㅋㅎㅠㅜㅡ0-9a-zA-Z ♥!?~.,…]+$")
+
+
+def validate_caption(caption: str) -> bool:
+    """캡션이 오타·렌더 위험 없이 사용 가능한지 규칙 검증.
+
+    맞춤법 판단이 아니라 기계적 결함(허용 외 문자, 길이 이탈,
+    실질 내용 없음)을 걸러내는 1차 방어선이다.
+    """
+    if not MIN_CAPTION_LENGTH <= len(caption) <= MAX_CAPTION_LENGTH:
+        return False
+    if not _CAPTION_ALLOWED.match(caption):
+        return False
+    # 실질 한글 내용 보장 ("ㅋㅋㅋㅋ", "zzZ!!" 같은 낱자·영문 단독 차단)
+    hangul_count = sum(1 for ch in caption if "가" <= ch <= "힣")
+    return hangul_count >= 2
+
 
 # LLM 호출 실패 시 기본 캡션 (감정별 2개씩, 랜덤 선택)
 # 단순 감탄사가 아니라 카톡에서 실제로 보낼 법한 상황 대사로 유지할 것
@@ -77,11 +98,49 @@ CAPTION_SYSTEM_PROMPT = """너는 귀여운 {animal_type}({breed}) 캐릭터야.
 예시 (새침한 토끼):
 {{"happy": "기분 좋아졌어 후후", "sad": "오늘은 말 걸지 마", "angry": "나 화난 거 안 보여?", "hungry": "당근 사와. 두 개", "love": "좋아하는 거 아니거든?", "surprised": "심장 떨어질 뻔했잖아", "sleepy": "먼저 잘게. 굿나잇"}}"""
 
-CAPTION_USER_PROMPT = """다음 감정 목록에 대한 캐릭터 대사를 JSON으로 만들어줘:
+CAPTION_USER_PROMPT = """다음 감정 목록에 대한 캐릭터 대사를 만들어줘:
 
 {emotions}
 
-JSON만 반환해. 다른 텍스트 없이."""
+각 항목을 emotion(감정 키)과 caption(대사) 필드로 반환해."""
+
+# 구조화 출력 스키마 — 파싱 실패와 깨진 JSON을 원천 차단
+# (Gemini는 배열을 직접, OpenAI strict 모드는 {"captions": [...]}로 감싸서 반환)
+CAPTION_ITEM_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "emotion": {"type": "STRING"},
+        "caption": {"type": "STRING"},
+    },
+    "required": ["emotion", "caption"],
+}
+GEMINI_RESPONSE_SCHEMA = {"type": "ARRAY", "items": CAPTION_ITEM_SCHEMA}
+OPENAI_RESPONSE_FORMAT = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "captions",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "captions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "emotion": {"type": "string"},
+                            "caption": {"type": "string"},
+                        },
+                        "required": ["emotion", "caption"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["captions"],
+            "additionalProperties": False,
+        },
+    },
+}
 
 
 def _build_caption_prompt(
@@ -99,7 +158,7 @@ def _build_caption_prompt(
 
 
 def _parse_captions(response_text: str) -> dict[str, str]:
-    """LLM 응답에서 JSON 캡션 딕셔너리 파싱."""
+    """비구조화 응답(hermes 전용)에서 JSON 캡션 딕셔너리 파싱."""
     text = response_text.strip()
     if text.startswith("```"):
         text = text.split("\n", 1)[1].rsplit("```", 1)[0]
@@ -109,6 +168,18 @@ def _parse_captions(response_text: str) -> dict[str, str]:
         raise ValueError("응답에서 JSON을 찾을 수 없습니다")
 
     return json.loads(json_match.group())
+
+
+def _parse_caption_items(raw: str) -> dict[str, str]:
+    """구조화 출력을 {emotion: caption} 딕셔너리로 변환.
+
+    Gemini는 배열([{emotion, caption}, ...])을, OpenAI strict 모드는
+    {"captions": [...]} 형태를 반환하므로 둘 다 처리한다.
+    """
+    data = json.loads(raw)
+    if isinstance(data, dict):
+        data = data.get("captions", [])
+    return {item["emotion"]: item["caption"] for item in data if item.get("emotion")}
 
 
 async def _generate_with_openai(system: str, user: str) -> str:
@@ -123,7 +194,8 @@ async def _generate_with_openai(system: str, user: str) -> str:
             {"role": "user", "content": user},
         ],
         temperature=0.8,
-        max_tokens=1024,
+        max_tokens=2048,
+        response_format=OPENAI_RESPONSE_FORMAT,
     )
     return response.choices[0].message.content or ""
 
@@ -140,7 +212,9 @@ async def _generate_with_gemini(system: str, user: str) -> str:
         config=types.GenerateContentConfig(
             system_instruction=system,
             temperature=0.8,
-            max_output_tokens=1024,
+            max_output_tokens=2048,
+            response_mime_type="application/json",
+            response_schema=GEMINI_RESPONSE_SCHEMA,
         ),
     )
     return response.text or ""
@@ -187,29 +261,30 @@ async def generate_captions(
     try:
         if provider == "openai":
             raw = await _generate_with_openai(system, user)
+            captions = _parse_caption_items(raw)
         elif provider == "hermes":
+            # 로컬 모델은 구조화 출력 미지원 — 기존 정규식 파싱 유지
             raw = await _generate_with_hermes(system, user)
+            captions = _parse_captions(raw)
         else:
             raw = await _generate_with_gemini(system, user)
+            captions = _parse_caption_items(raw)
 
-        captions = _parse_captions(raw)
         logger.info("Generated %d captions via %s", len(captions), provider)
 
     except Exception:
         logger.exception("Caption generation failed, using fallbacks")
         captions = {}
 
-    # 누락되거나 렌더 한계(2줄)를 넘는 감정은 fallback에서 랜덤 선택
+    # 누락되거나 검증(문자·길이·내용)을 통과하지 못한 감정은 fallback에서 랜덤 선택
     result = {}
     for emotion, _ in emotions:
         generated = captions.get(emotion, "")
-        if generated and len(generated) <= MAX_CAPTION_LENGTH:
+        if generated and validate_caption(generated):
             result[emotion] = generated
         else:
             if generated:
-                logger.info(
-                    "Caption too long for %s (%d chars), using fallback", emotion, len(generated)
-                )
+                logger.info("Caption rejected for %s: %r, using fallback", emotion, generated)
             fallbacks = CAPTION_FALLBACKS.get(emotion, [""])
             result[emotion] = random.choice(fallbacks)
 
