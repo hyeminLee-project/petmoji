@@ -103,11 +103,8 @@ ACCESSORY_DESCRIPTIONS = {
     "headband": "wearing a cute headband with ears",
 }
 
-# 장면(풍경)이 아닌 단색·추상 배경 — 이 목록만 'Clean background' 지시를 받는다.
+# 장면이 없는 단색/패턴 배경 — 이 목록만 'Clean background' 지시를 받는다.
 # BACKGROUND_DESCRIPTIONS에 단색 배경을 추가하면 여기에도 반드시 추가할 것.
-PLAIN_BACKGROUNDS = ("white", "transparent", "gradient")
-
-# 장면이 없는 단색/패턴 배경 (이 목록에 없으면 장면 배경으로 취급)
 PLAIN_BACKGROUNDS = ("white", "transparent", "gradient")
 
 BACKGROUND_DESCRIPTIONS = {
