@@ -104,6 +104,24 @@ CAPTION_USER_PROMPT = """다음 감정 목록에 대한 캐릭터 대사를 만�
 
 각 항목을 emotion(감정 키)과 caption(대사) 필드로 반환해."""
 
+# 셀프 교정: 맞춤법 실수만 고치고 의도적 구어체는 보존, 감정 불일치는 REJECT
+PROOFREAD_REJECT = "REJECT"
+
+PROOFREAD_SYSTEM_PROMPT = """너는 한국어 이모티콘 대사 검수 전문가야.
+주어진 감정별 대사에서 진짜 맞춤법 실수만 고쳐줘.
+
+규칙:
+- 명백한 실수만 교정 (예: 됬어→됐어, 안되→안돼, 어의없어→어이없어, 잘못된 띄어쓰기)
+- 의도적 구어체·신조어·말줄임은 절대 건드리지 마 ("째진다", "젤", "넘", "~라니까", "꼬옥" 등)
+- 특수문자(♥ ! ? ~ ... ㅋㅋ ㅠㅠ)와 말투는 그대로 유지
+- 대사가 해당 감정과 명백히 안 맞으면 caption을 "REJECT"로만 표시
+- 고칠 것이 없으면 원문 그대로 반환
+- 모든 항목을 emotion과 caption 필드로 반환"""
+
+PROOFREAD_USER_PROMPT = """다음 감정별 대사를 검수해줘:
+
+{items}"""
+
 # 구조화 출력 스키마 — 파싱 실패와 깨진 JSON을 원천 차단
 # (Gemini는 배열을 직접, OpenAI strict 모드는 {"captions": [...]}로 감싸서 반환)
 CAPTION_ITEM_SCHEMA = {
@@ -182,8 +200,8 @@ def _parse_caption_items(raw: str) -> dict[str, str]:
     return {item["emotion"]: item["caption"] for item in data if item.get("emotion")}
 
 
-async def _generate_with_openai(system: str, user: str) -> str:
-    """OpenAI로 캡션 생성."""
+async def _generate_with_openai(system: str, user: str, temperature: float = 0.8) -> str:
+    """OpenAI로 캡션 생성/교정 (구조화 출력)."""
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI()
@@ -193,15 +211,15 @@ async def _generate_with_openai(system: str, user: str) -> str:
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-        temperature=0.8,
+        temperature=temperature,
         max_tokens=2048,
         response_format=OPENAI_RESPONSE_FORMAT,
     )
     return response.choices[0].message.content or ""
 
 
-async def _generate_with_gemini(system: str, user: str) -> str:
-    """Gemini로 캡션 생성."""
+async def _generate_with_gemini(system: str, user: str, temperature: float = 0.8) -> str:
+    """Gemini로 캡션 생성/교정 (구조화 출력)."""
     from google import genai
     from google.genai import types
 
@@ -211,7 +229,7 @@ async def _generate_with_gemini(system: str, user: str) -> str:
         contents=user,
         config=types.GenerateContentConfig(
             system_instruction=system,
-            temperature=0.8,
+            temperature=temperature,
             max_output_tokens=2048,
             response_mime_type="application/json",
             response_schema=GEMINI_RESPONSE_SCHEMA,
@@ -239,6 +257,43 @@ async def _generate_with_hermes(system: str, user: str) -> str:
         )
         response.raise_for_status()
         return response.json()["message"]["content"]
+
+
+async def _proofread_captions(captions: dict[str, str], provider: str) -> dict[str, str]:
+    """LLM 셀프 교정: 맞춤법 실수만 수정하고 감정 불일치 대사는 비운다.
+
+    교정은 부가 단계라 호출이 실패하면 원본을 그대로 반환한다.
+    REJECT 판정은 빈 문자열이 되어 상위에서 fallback으로 대체된다.
+    hermes는 구조화 출력 미지원이라 건너뛴다.
+    """
+    if not captions or provider == "hermes":
+        return captions
+
+    items = json.dumps(
+        [{"emotion": e, "caption": c} for e, c in captions.items()], ensure_ascii=False
+    )
+    user = PROOFREAD_USER_PROMPT.format(items=items)
+
+    try:
+        if provider == "openai":
+            raw = await _generate_with_openai(PROOFREAD_SYSTEM_PROMPT, user, temperature=0.1)
+        else:
+            raw = await _generate_with_gemini(PROOFREAD_SYSTEM_PROMPT, user, temperature=0.1)
+        corrected = _parse_caption_items(raw)
+    except Exception:
+        logger.warning("Caption proofread failed, keeping originals")
+        return captions
+
+    result = {}
+    for emotion, original in captions.items():
+        fixed = corrected.get(emotion, original)
+        if fixed == PROOFREAD_REJECT:
+            logger.info("Caption rejected by proofread for %s: %r", emotion, original)
+            fixed = ""
+        elif fixed != original:
+            logger.info("Caption corrected for %s: %r -> %r", emotion, original, fixed)
+        result[emotion] = fixed
+    return result
 
 
 async def generate_captions(
@@ -275,6 +330,9 @@ async def generate_captions(
     except Exception:
         logger.exception("Caption generation failed, using fallbacks")
         captions = {}
+
+    # 셀프 교정: 맞춤법 수정 + 감정 불일치 REJECT (실패 시 원본 유지)
+    captions = await _proofread_captions(captions, provider)
 
     # 누락되거나 검증(문자·길이·내용)을 통과하지 못한 감정은 fallback에서 랜덤 선택
     result = {}
