@@ -23,6 +23,7 @@ from app.graph.nodes import (
     reference_node,
     scene_node,
     style_node,
+    truncate_custom_prompt,
 )
 from app.graph.prompts import build_wizard_prompt
 from app.graph.wizard import get_app_wizard_graph
@@ -34,13 +35,8 @@ from app.models.schemas import (
     WizardStepRequest,
 )
 from app.models.tiers import TierType, get_tier_config
-from app.services.caption import generate_captions
-from app.services.generator import (
-    EMOTIONS,
-    PROVIDERS,
-    build_prompt_suffix,
-    generation_semaphore,
-)
+from app.services.generation_stream import fetch_captions_safe, stream_emoji_generation
+from app.services.generator import EMOTIONS, PROVIDERS, build_prompt_suffix
 from app.utils.upload import read_and_validate_image
 
 logger = logging.getLogger(__name__)
@@ -204,6 +200,35 @@ async def wizard_start(
     )
 
 
+# 단계별 미리보기 노드 매핑
+_STEP_NODES = {
+    "style": style_node,
+    "proportion": proportion_node,
+    "detail": detail_node,
+    "reference": reference_node,
+    "scene": scene_node,
+}
+
+
+def _selection_to_update(step: str, selection: dict) -> dict:
+    """단계별 선택값을 LangGraph 상태 업데이트로 변환."""
+    update = {"current_step": step}
+    if step == "style":
+        update["style"] = selection.get("style", "2d")
+    elif step == "proportion":
+        update["proportion"] = selection.get("proportion", "chibi")
+    elif step == "detail":
+        update["detail"] = selection.get("detail", {})
+    elif step == "reference":
+        update["reference"] = selection.get("reference", "none")
+    elif step == "scene":
+        scene_sel = selection.get("scene", {})
+        update["accessory"] = scene_sel.get("accessory", "none")
+        update["scene_background"] = scene_sel.get("scene_background", "white")
+        update["time_of_day"] = scene_sel.get("time_of_day", "none")
+    return update
+
+
 @router.post("/step")
 @limiter.limit("20/minute")
 async def wizard_step(
@@ -232,37 +257,11 @@ async def wizard_step(
 
     # 선택값 적용
     step = body.step
-    selection = body.selection
-
-    update = {"current_step": step}
-    if step == "style":
-        update["style"] = selection.get("style", "2d")
-    elif step == "proportion":
-        update["proportion"] = selection.get("proportion", "chibi")
-    elif step == "detail":
-        update["detail"] = selection.get("detail", {})
-    elif step == "reference":
-        update["reference"] = selection.get("reference", "none")
-    elif step == "scene":
-        scene_sel = selection.get("scene", {})
-        update["accessory"] = scene_sel.get("accessory", "none")
-        update["scene_background"] = scene_sel.get("scene_background", "white")
-        update["time_of_day"] = scene_sel.get("time_of_day", "none")
-
-    # 상태 업데이트
-    await graph.aupdate_state(config, update)
-
-    # 노드 함수 매핑
-    node_fns = {
-        "style": style_node,
-        "proportion": proportion_node,
-        "detail": detail_node,
-        "reference": reference_node,
-        "scene": scene_node,
-    }
-    node_fn = node_fns.get(step)
+    node_fn = _STEP_NODES.get(step)
     if not node_fn:
         raise HTTPException(status_code=400, detail=f"유효하지 않은 단계: {step}")
+
+    await graph.aupdate_state(config, _selection_to_update(step, body.selection))
 
     callback = SSECallback()
 
@@ -377,9 +376,8 @@ async def wizard_generate(
             updated_state = await graph.aget_state(config)
             state = updated_state.values
             emoji_count = state.get("emoji_count", 8)
-            generate_fn = PROVIDERS[state.get("provider", "gemini")]
-
-            from app.graph.nodes import _truncate_custom_prompt
+            provider = state.get("provider", "gemini")
+            emotions_to_generate = EMOTIONS[:emoji_count]
 
             base_prompt = build_wizard_prompt(
                 pet_features=state.get("pet_features", {}),
@@ -387,96 +385,39 @@ async def wizard_generate(
                 proportion=state.get("proportion", "chibi"),
                 detail=state.get("detail"),
                 reference=state.get("reference", "none"),
-                custom_prompt=_truncate_custom_prompt(state),
+                custom_prompt=truncate_custom_prompt(state),
                 accessory=state.get("accessory", "none"),
                 scene_background=state.get("scene_background", "white"),
                 time_of_day=state.get("time_of_day", "none"),
             )
 
-            emotions_to_generate = EMOTIONS[:emoji_count]
+            await callback.emit(
+                "progress",
+                {
+                    "step": "captioning",
+                    "message": "캐릭터 대사를 만들고 있어요...",
+                    "progress": 0.05,
+                },
+            )
+            captions = await fetch_captions_safe(
+                emotions_to_generate, state.get("pet_features"), provider
+            )
 
-            # 캡션 생성
-            captions: dict[str, str] = {}
-            pet_features_obj = state.get("pet_features")
-            if pet_features_obj:
-                await callback.emit(
-                    "progress",
-                    {
-                        "step": "captioning",
-                        "message": "캐릭터 대사를 만들고 있어요...",
-                        "progress": 0.05,
-                    },
-                )
-                try:
-                    from app.models.schemas import PetFeatures
-
-                    if isinstance(pet_features_obj, dict):
-                        pet_features_obj = PetFeatures(**pet_features_obj)
-                    captions = await generate_captions(
-                        emotions_to_generate, pet_features_obj, state.get("provider", "gemini")
-                    )
-                except Exception:
-                    logger.warning("Caption generation failed in wizard, continuing without")
-
-            emojis = []
-            total = len(emotions_to_generate)
-
-            suffix = build_prompt_suffix(state.get("scene_background", "white"))
-
-            async def _gen(idx: int, emotion: str, description: str) -> tuple[int, str, str]:
-                prompt = f"""{base_prompt}
-Expression/pose: {emotion} - {description}.
-{suffix}"""
-                async with generation_semaphore:
-                    image_url = await generate_fn(prompt)
-                return idx, emotion, image_url
-
-            tasks = [
-                asyncio.ensure_future(_gen(i, emotion, desc))
-                for i, (emotion, desc) in enumerate(emotions_to_generate)
-            ]
-
-            for done_count, coro in enumerate(asyncio.as_completed(tasks), 1):
-                try:
-                    idx, emotion, image_url = await coro
-                except Exception:
-                    logger.exception("Wizard emoji generation failed")
-                    await callback.emit("error", {"message": "이모지 생성 중 오류가 발생했습니다"})
-                    for t in tasks:
-                        t.cancel()
-                    await callback.done()
+            emojis: list[dict] = []
+            generation = stream_emoji_generation(
+                base_prompt=base_prompt,
+                suffix=build_prompt_suffix(state.get("scene_background", "white")),
+                emotions=emotions_to_generate,
+                generate_fn=PROVIDERS[provider],
+                captions=captions,
+            )
+            async for event, payload in generation:
+                if event == "done":
+                    emojis = payload["emojis"]
+                    continue
+                await callback.emit(event, payload)
+                if event == "error":
                     return
-
-                emojis.append(
-                    {
-                        "emotion": emotion,
-                        "image_url": image_url,
-                        "caption": captions.get(emotion, ""),
-                    }
-                )
-
-                await callback.emit(
-                    "progress",
-                    {
-                        "step": "generating",
-                        "message": f"이모지 생성 중... ({done_count}/{total})",
-                        "progress": done_count / total,
-                    },
-                )
-
-                await callback.emit(
-                    "emoji",
-                    {
-                        "emotion": emotion,
-                        "image_url": image_url,
-                        "caption": captions.get(emotion, ""),
-                        "index": idx,
-                        "total": total,
-                    },
-                )
-
-            # 원래 순서로 정렬
-            emojis.sort(key=lambda e: [em for em, _ in emotions_to_generate].index(e["emotion"]))
 
             # 결과를 그래프 상태에 반영
             await graph.aupdate_state(config, {"emojis": emojis})

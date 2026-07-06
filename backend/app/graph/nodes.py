@@ -17,7 +17,7 @@ from app.utils.upload import MAX_PROMPT_LENGTH
 logger = logging.getLogger(__name__)
 
 
-def _truncate_custom_prompt(state: WizardState) -> str:
+def truncate_custom_prompt(state: WizardState) -> str:
     """custom_prompt를 최대 길이로 자른다."""
     raw = state.get("custom_prompt", "")
     return raw[:MAX_PROMPT_LENGTH] if raw else ""
@@ -31,7 +31,7 @@ async def _generate_preview(state: WizardState) -> str:
         proportion=state.get("proportion", "chibi"),
         detail=state.get("detail"),
         reference=state.get("reference", "none"),
-        custom_prompt=_truncate_custom_prompt(state),
+        custom_prompt=truncate_custom_prompt(state),
         accessory=state.get("accessory", "none"),
         scene_background=state.get("scene_background", "white"),
         time_of_day=state.get("time_of_day", "none"),
@@ -129,7 +129,7 @@ async def generate_node(state: WizardState) -> dict:
         proportion=state.get("proportion", "chibi"),
         detail=state.get("detail"),
         reference=state.get("reference", "none"),
-        custom_prompt=_truncate_custom_prompt(state),
+        custom_prompt=truncate_custom_prompt(state),
         accessory=state.get("accessory", "none"),
         scene_background=state.get("scene_background", "white"),
         time_of_day=state.get("time_of_day", "none"),
