@@ -6,28 +6,25 @@ from app.models.schemas import EmojiResult
 
 
 async def test_formats_list(client: AsyncClient):
-    """GET /api/formats — 5개 포맷 목록"""
+    """GET /api/formats — FORMAT_REGISTRY의 전체 포맷 목록"""
+    from app.converters import FORMAT_REGISTRY
+
     res = await client.get("/api/formats")
     assert res.status_code == 200
     data = res.json()
-    assert len(data["formats"]) == 9
     ids = {f["id"] for f in data["formats"]}
+    assert ids == set(FORMAT_REGISTRY.keys())
     assert "kakao" in ids
     assert "kakao_animated" in ids
-    assert "kakao_large_square" in ids
-    assert "imessage" in ids
-    assert "sticker" in ids
-    assert "gif" in ids
-    assert "wallpaper" in ids
+    assert "kakao_submission" in ids
 
 
 async def test_formats_have_required_fields(client: AsyncClient):
-    """각 포맷에 id, name, size 필드 존재"""
+    """각 포맷에 프론트가 쓰는 필드 존재"""
     res = await client.get("/api/formats")
     for fmt in res.json()["formats"]:
-        assert "id" in fmt
-        assert "name" in fmt
-        assert "size" in fmt
+        for field in ("id", "name", "icon", "size", "description", "max_count"):
+            assert field in fmt, f"{fmt.get('id')}: {field} 누락"
 
 
 async def test_convert_kakao(client: AsyncClient, sample_emojis: list[EmojiResult]):

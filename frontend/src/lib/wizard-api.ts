@@ -6,6 +6,7 @@ import type {
   EmojiResult,
   PetFeatures,
 } from "@/types/api";
+import { readSSEStream } from "./sse-parser";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -62,36 +63,14 @@ export function wizardStep(
 
       if (!res.ok) throw new Error(`단계 실행 실패 (${res.status})`);
 
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("스트리밍 불가");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const events = buffer.split("\n\n");
-        buffer = events.pop() || "";
-
-        for (const eventStr of events) {
-          if (!eventStr.trim()) continue;
-          let eventType = "";
-          let eventData = "";
-          for (const line of eventStr.split("\n")) {
-            if (line.startsWith("event: ")) eventType = line.slice(7);
-            else if (line.startsWith("data: ")) eventData = line.slice(6);
-          }
-          if (!eventType || !eventData) continue;
-          const data = JSON.parse(eventData);
-
-          if (eventType === "progress") callbacks.onProgress(data);
-          else if (eventType === "preview") callbacks.onPreview(data);
-          else if (eventType === "error") callbacks.onError(new Error(data.message));
-        }
-      }
+      await readSSEStream(res, (eventType, data) => {
+        if (eventType === "progress")
+          callbacks.onProgress(data as { step: string; message: string; progress: number });
+        else if (eventType === "preview")
+          callbacks.onPreview(data as { step: string; image_url: string });
+        else if (eventType === "error")
+          callbacks.onError(new Error((data as { message: string }).message));
+      });
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
         callbacks.onError(err instanceof Error ? err : new Error("알 수 없는 오류"));
@@ -155,37 +134,24 @@ export function wizardGenerate(
 
       if (!res.ok) throw new Error(`생성 실패 (${res.status})`);
 
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("스트리밍 불가");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const events = buffer.split("\n\n");
-        buffer = events.pop() || "";
-
-        for (const eventStr of events) {
-          if (!eventStr.trim()) continue;
-          let eventType = "";
-          let eventData = "";
-          for (const line of eventStr.split("\n")) {
-            if (line.startsWith("event: ")) eventType = line.slice(7);
-            else if (line.startsWith("data: ")) eventData = line.slice(6);
-          }
-          if (!eventType || !eventData) continue;
-          const data = JSON.parse(eventData);
-
-          if (eventType === "progress") callbacks.onProgress(data);
-          else if (eventType === "emoji") callbacks.onEmoji(data);
-          else if (eventType === "complete") callbacks.onComplete(data);
-          else if (eventType === "error") callbacks.onError(new Error(data.message));
-        }
-      }
+      await readSSEStream(res, (eventType, data) => {
+        if (eventType === "progress")
+          callbacks.onProgress(data as { step: string; message: string; progress: number });
+        else if (eventType === "emoji")
+          callbacks.onEmoji(
+            data as {
+              emotion: string;
+              image_url: string;
+              caption?: string;
+              index: number;
+              total: number;
+            }
+          );
+        else if (eventType === "complete")
+          callbacks.onComplete(data as { pet_features: PetFeatures; emojis: EmojiResult[] });
+        else if (eventType === "error")
+          callbacks.onError(new Error((data as { message: string }).message));
+      });
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
         callbacks.onError(err instanceof Error ? err : new Error("알 수 없는 오류"));

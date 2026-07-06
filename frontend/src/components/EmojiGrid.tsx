@@ -1,5 +1,6 @@
 import type { EmojiResult } from "@/types/api";
 
+// 감정 32종 — 백엔드 generator.py의 EMOTIONS와 키가 1:1로 일치해야 함
 const EMOTION_LABELS: Record<string, string> = {
   happy: "행복 😊",
   sad: "슬픔 😢",

@@ -5,7 +5,7 @@ from app.services.generator import (
     BACKGROUND_DESCRIPTIONS,
     STYLE_DESCRIPTIONS,
     TIME_DESCRIPTIONS,
-    _sanitize_custom_prompt,
+    sanitize_custom_prompt,
 )
 
 PROPORTION_DESCRIPTIONS = {
@@ -95,7 +95,7 @@ The character should be centered, emoji-sized square composition."""
     if time_desc:
         base += f"\nLighting: {time_desc}."
 
-    sanitized = _sanitize_custom_prompt(custom_prompt)
+    sanitized = sanitize_custom_prompt(custom_prompt)
     if sanitized:
         base += f"\nAdditional instructions: {sanitized}"
 

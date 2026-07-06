@@ -38,8 +38,8 @@ from app.services.caption import generate_captions
 from app.services.generator import (
     EMOTIONS,
     PROVIDERS,
-    _generation_semaphore,
     build_prompt_suffix,
+    generation_semaphore,
 )
 from app.utils.upload import read_and_validate_image
 
@@ -427,7 +427,7 @@ async def wizard_generate(
                 prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
 {suffix}"""
-                async with _generation_semaphore:
+                async with generation_semaphore:
                     image_url = await generate_fn(prompt)
                 return idx, emotion, image_url
 

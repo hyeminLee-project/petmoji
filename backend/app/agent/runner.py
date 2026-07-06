@@ -9,7 +9,7 @@ import anthropic
 
 from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.tools import TOOLS, execute_tool
-from app.services.generator import _sanitize_custom_prompt
+from app.services.generator import sanitize_custom_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ async def run_agent(
     Returns:
         {"summary": str, "emojis": list, "converted": list | None}
     """
-    sanitized = _sanitize_custom_prompt(user_prompt)
+    sanitized = sanitize_custom_prompt(user_prompt)
     if not sanitized:
         return {"error": "유효하지 않은 프롬프트입니다"}
 

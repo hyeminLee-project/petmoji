@@ -9,8 +9,9 @@ logger = logging.getLogger(__name__)
 
 # AI API 동시 요청 제한 (rate limit 보호)
 MAX_CONCURRENT_GENERATIONS = 5
-_generation_semaphore = asyncio.Semaphore(MAX_CONCURRENT_GENERATIONS)
+generation_semaphore = asyncio.Semaphore(MAX_CONCURRENT_GENERATIONS)
 
+# 감정 32종 — 프론트 EmojiGrid.tsx의 EMOTION_LABELS와 키가 1:1로 일치해야 함
 EMOTIONS = [
     # 기본 8종
     ("happy", "smiling big with sparkly eyes, tail wagging"),
@@ -71,7 +72,7 @@ PROMPT_BLOCKLIST = [
 ]
 
 
-def _sanitize_custom_prompt(prompt: str) -> str:
+def sanitize_custom_prompt(prompt: str) -> str:
     """커스텀 프롬프트에서 위험한 패턴 제거."""
     lower = prompt.lower()
     for blocked in PROMPT_BLOCKLIST:
@@ -102,7 +103,8 @@ ACCESSORY_DESCRIPTIONS = {
     "headband": "wearing a cute headband with ears",
 }
 
-# 장면이 없는 단색/패턴 배경 (이 목록에 없으면 장면 배경으로 취급)
+# 장면이 없는 단색/패턴 배경 — 이 목록만 'Clean background' 지시를 받는다.
+# BACKGROUND_DESCRIPTIONS에 단색 배경을 추가하면 여기에도 반드시 추가할 것.
 PLAIN_BACKGROUNDS = ("white", "transparent", "gradient")
 
 BACKGROUND_DESCRIPTIONS = {
@@ -127,7 +129,7 @@ TIME_DESCRIPTIONS = {
 }
 
 
-def _build_character_prompt(
+def build_character_prompt(
     features: PetFeatures,
     style: str,
     custom_prompt: str = "",
@@ -158,7 +160,7 @@ The character should be chibi-proportioned (big head, small body), centered, emo
     if time_desc:
         base += f"\nLighting: {time_desc}."
 
-    sanitized = _sanitize_custom_prompt(custom_prompt)
+    sanitized = sanitize_custom_prompt(custom_prompt)
     if sanitized:
         base += f"\nAdditional instructions: {sanitized}"
 
@@ -210,7 +212,7 @@ async def _generate_with_gemini(prompt: str) -> str:
     return f"data:image/png;base64,{b64}"
 
 
-async def _enhance_prompt_with_hermes(prompt: str) -> str:
+async def enhance_prompt_with_hermes(prompt: str) -> str:
     """Hermes 로컬 모델로 이미지 프롬프트 최적화."""
     import httpx
 
@@ -255,7 +257,7 @@ def build_prompt_suffix(background: str = "white") -> str:
     배경 설정과 모순되지 않게 한다.
     """
     suffix = "No text, no watermark."
-    if background in ("white", "transparent", "gradient"):
+    if background in PLAIN_BACKGROUNDS:
         suffix += " Clean background."
     return suffix
 
@@ -277,7 +279,7 @@ async def generate_emoji_set(
         raise ValueError(f"지원하지 않는 provider: {provider}. 가능: {list(PROVIDERS.keys())}")
 
     generate_fn = PROVIDERS[provider]
-    base_prompt = _build_character_prompt(
+    base_prompt = build_character_prompt(
         features,
         style,
         custom_prompt,
@@ -301,10 +303,10 @@ Expression/pose: {emotion} - {description}.
 {suffix}"""
 
         if enhance_with_hermes:
-            prompt = await _enhance_prompt_with_hermes(prompt)
+            prompt = await enhance_prompt_with_hermes(prompt)
 
         logger.info("Generating %s emoji with %s", emotion, provider)
-        async with _generation_semaphore:
+        async with generation_semaphore:
             image_url = await generate_fn(prompt)
 
         return EmojiResult(

@@ -102,9 +102,13 @@ export interface ConvertResponse {
   emojis: ConvertedEmoji[];
 }
 
-/** 포맷 정보 */
+/** 포맷 정보 — 백엔드 FORMAT_REGISTRY(/api/formats)가 단일 진실 원천 */
 export interface FormatInfo {
   id: ConvertFormat;
   name: string;
+  icon: string;
   size: string;
+  limit: string | null;
+  max_count: number;
+  description: string;
 }

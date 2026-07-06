@@ -1,3 +1,5 @@
+import { readSSEStream } from "./sse-parser";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export interface ToolCallEvent {
@@ -50,55 +52,25 @@ export function agentGenerate(
         throw new Error(`서버 오류 (${res.status}): ${text || "알 수 없는 오류"}`);
       }
 
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("스트리밍을 지원하지 않는 응답입니다");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        const events = buffer.split("\n\n");
-        buffer = events.pop() || "";
-
-        for (const eventStr of events) {
-          if (!eventStr.trim()) continue;
-
-          let eventType = "";
-          let eventData = "";
-
-          for (const line of eventStr.split("\n")) {
-            if (line.startsWith("event: ")) eventType = line.slice(7);
-            else if (line.startsWith("data: ")) eventData = line.slice(6);
-          }
-
-          if (!eventType || !eventData) continue;
-
-          const data = JSON.parse(eventData);
-
-          switch (eventType) {
-            case "progress":
-              callbacks.onProgress(data.message);
-              break;
-            case "tool_call":
-              callbacks.onToolCall(data as ToolCallEvent);
-              break;
-            case "tool_result":
-              callbacks.onToolResult(data as ToolResultEvent);
-              break;
-            case "complete":
-              callbacks.onComplete(data as AgentCompleteEvent);
-              break;
-            case "error":
-              callbacks.onError(new Error(data.message));
-              break;
-          }
+      await readSSEStream(res, (eventType, data) => {
+        switch (eventType) {
+          case "progress":
+            callbacks.onProgress((data as { message: string }).message);
+            break;
+          case "tool_call":
+            callbacks.onToolCall(data as ToolCallEvent);
+            break;
+          case "tool_result":
+            callbacks.onToolResult(data as ToolResultEvent);
+            break;
+          case "complete":
+            callbacks.onComplete(data as AgentCompleteEvent);
+            break;
+          case "error":
+            callbacks.onError(new Error((data as { message: string }).message));
+            break;
         }
-      }
+      });
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
         callbacks.onError(

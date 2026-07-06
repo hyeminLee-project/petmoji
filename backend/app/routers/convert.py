@@ -3,79 +3,40 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.converters import CONVERTERS
+from app.converters import CONVERTERS, FORMAT_REGISTRY
 from app.models.schemas import ConvertResponse, EmojiResult
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-AVAILABLE_FORMATS = list(CONVERTERS.keys())
+AVAILABLE_FORMATS = list(FORMAT_REGISTRY.keys())
 
 
 # base64 이미지 URL 최대 크기: 10MB (base64 인코딩 오버헤드 포함)
 MAX_IMAGE_URL_LENGTH = 14 * 1024 * 1024
-# 포맷별 최대 이모지 개수
-FORMAT_MAX_COUNT = {
-    "kakao": 32,
-    "kakao_submission": 42,
-    "kakao_animated": 24,
-    "kakao_large_square": 16,
-    "kakao_large_wide": 16,
-    "kakao_large_tall": 16,
-}
-DEFAULT_MAX_EMOJIS = 16
 
 
 class ConvertRequest(BaseModel):
     emojis: list[EmojiResult]
-    format: str  # kakao, imessage, sticker, gif, wallpaper
+    format: str  # FORMAT_REGISTRY의 키
 
 
 @router.get("/formats")
 async def list_formats():
-    """List available conversion formats."""
+    """사용 가능한 변환 포맷 목록 (FORMAT_REGISTRY 기반)."""
     return {
         "formats": [
             {
-                "id": "kakao",
-                "name": "카카오톡 이모티콘",
-                "size": "360x360",
-                "limit": "150KB",
-                "max_count": 32,
-            },
-            {
-                "id": "kakao_animated",
-                "name": "카카오 움직이는 이모티콘",
-                "size": "360x360",
-                "limit": "650KB",
-                "max_count": 24,
-            },
-            {
-                "id": "kakao_large_square",
-                "name": "카카오 큰이모티콘 (정사각)",
-                "size": "540x540",
-                "limit": "1MB",
-                "max_count": 16,
-            },
-            {
-                "id": "kakao_large_wide",
-                "name": "카카오 큰이모티콘 (가로)",
-                "size": "540x300",
-                "limit": "1MB",
-                "max_count": 16,
-            },
-            {
-                "id": "kakao_large_tall",
-                "name": "카카오 큰이모티콘 (세로)",
-                "size": "300x540",
-                "limit": "1MB",
-                "max_count": 16,
-            },
-            {"id": "imessage", "name": "iMessage 스티커", "size": "408x408"},
-            {"id": "sticker", "name": "투명 스티커 PNG", "size": "512x512"},
-            {"id": "gif", "name": "움직이는 GIF", "size": "256x256"},
-            {"id": "wallpaper", "name": "폰 배경화면", "size": "1170x2532"},
+                "id": format_id,
+                "name": meta["name"],
+                "icon": meta["icon"],
+                "size": meta["size"],
+                "limit": meta["limit"],
+                "max_count": meta["max_count"],
+                "description": meta["description"],
+            }
+            for format_id, meta in FORMAT_REGISTRY.items()
         ]
     }
 
@@ -92,7 +53,7 @@ async def convert_emojis(request: ConvertRequest):
     if not request.emojis:
         raise HTTPException(status_code=400, detail="변환할 이모지가 없습니다")
 
-    max_count = FORMAT_MAX_COUNT.get(request.format, DEFAULT_MAX_EMOJIS)
+    max_count = FORMAT_REGISTRY[request.format]["max_count"]
     if len(request.emojis) > max_count:
         raise HTTPException(
             status_code=400,

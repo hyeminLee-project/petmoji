@@ -1,21 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import type { ConvertFormat, EmojiResult, ConvertedEmoji, Tier } from "@/types/api";
-import { convertEmojis, animateEmoji } from "@/lib/api";
-
-const FORMATS: { id: ConvertFormat; icon: string; name: string; desc: string }[] = [
-  { id: "kakao", icon: "💬", name: "카카오톡", desc: "360x360 (최대 32개)" },
-  { id: "kakao_animated", icon: "💬", name: "카카오 움직이는", desc: "360x360 GIF (최대 24개)" },
-  { id: "kakao_large_square", icon: "💬", name: "카카오 큰(정사각)", desc: "540x540 (최대 16개)" },
-  { id: "kakao_large_wide", icon: "💬", name: "카카오 큰(가로)", desc: "540x300 (최대 16개)" },
-  { id: "kakao_large_tall", icon: "💬", name: "카카오 큰(세로)", desc: "300x540 (최대 16개)" },
-  { id: "imessage", icon: "🍎", name: "iMessage", desc: "408x408 스티커" },
-  { id: "sticker", icon: "✂️", name: "스티커 PNG", desc: "512x512 투명 배경" },
-  { id: "gif", icon: "🎬", name: "움직이는 GIF", desc: "256x256 바운스" },
-  { id: "wallpaper", icon: "📱", name: "폰 배경화면", desc: "1170x2532 패턴" },
-  { id: "kakao_submission", icon: "📋", name: "카카오 제안용", desc: "이모티콘+아이콘+공유 ZIP" },
-];
+import { useEffect, useState } from "react";
+import type { ConvertFormat, EmojiResult, ConvertedEmoji, FormatInfo, Tier } from "@/types/api";
+import { convertEmojis, animateEmoji, getFormats } from "@/lib/api";
 
 interface Props {
   emojis: EmojiResult[];
@@ -23,9 +10,16 @@ interface Props {
 }
 
 export default function FormatSelector({ emojis, tier = "free" }: Props) {
+  const [formats, setFormats] = useState<FormatInfo[]>([]);
   const [converting, setConverting] = useState<ConvertFormat | null>(null);
   const [results, setResults] = useState<Record<string, ConvertedEmoji[]>>({});
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getFormats()
+      .then(setFormats)
+      .catch(() => setError("포맷 목록을 불러오지 못했습니다"));
+  }, []);
 
   const [animating, setAnimating] = useState<string | null>(null);
   const [animated, setAnimated] = useState<Record<string, ConvertedEmoji>>({});
@@ -91,7 +85,7 @@ export default function FormatSelector({ emojis, tier = "free" }: Props) {
 
       {/* Format buttons */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        {FORMATS.map((fmt) => (
+        {formats.map((fmt) => (
           <button
             key={fmt.id}
             onClick={() => handleConvert(fmt.id)}
@@ -106,7 +100,7 @@ export default function FormatSelector({ emojis, tier = "free" }: Props) {
           >
             <div className="text-xl">{fmt.icon}</div>
             <div className="text-sm font-medium mt-1">{fmt.name}</div>
-            <div className="text-xs text-gray-500">{fmt.desc}</div>
+            <div className="text-xs text-gray-500">{fmt.description}</div>
             {results[fmt.id] && (
               <div className="text-xs text-green-600 mt-1">✅ 완료</div>
             )}
@@ -185,7 +179,7 @@ export default function FormatSelector({ emojis, tier = "free" }: Props) {
         <div key={format} className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <h4 className="font-semibold text-gray-700">
-              {FORMATS.find((f) => f.id === format)?.name} 결과
+              {formats.find((f) => f.id === format)?.name} 결과
             </h4>
             <button
               onClick={() => handleDownloadAll(format)}

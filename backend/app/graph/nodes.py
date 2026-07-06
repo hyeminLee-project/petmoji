@@ -9,8 +9,8 @@ from app.services.analyzer import analyze_pet_photo
 from app.services.generator import (
     EMOTIONS,
     PROVIDERS,
-    _generation_semaphore,
     build_prompt_suffix,
+    generation_semaphore,
 )
 from app.utils.upload import MAX_PROMPT_LENGTH
 
@@ -142,7 +142,7 @@ async def generate_node(state: WizardState) -> dict:
         prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
 {suffix}"""
-        async with _generation_semaphore:
+        async with generation_semaphore:
             image_url = await generate_fn(prompt)
         return {"emotion": emotion, "image_url": image_url}
 
@@ -169,7 +169,7 @@ async def free_generate_node(state: WizardState) -> dict:
         prompt = f"""{base_prompt}
 Expression/pose: {emotion} - {description}.
 {suffix}"""
-        async with _generation_semaphore:
+        async with generation_semaphore:
             image_url = await generate_fn(prompt)
         return {"emotion": emotion, "image_url": image_url}
 
