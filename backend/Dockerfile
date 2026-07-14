@@ -3,7 +3,9 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# setuptools 업그레이드: 베이스 이미지 동봉 버전의 PYSEC-2026-3447 취약점 대응
+RUN pip install --no-cache-dir --upgrade "setuptools>=83.0.0" \
+    && pip install --no-cache-dir -r requirements.txt
 
 COPY app/ app/
 
