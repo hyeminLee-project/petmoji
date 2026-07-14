@@ -63,6 +63,8 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r backend/requirements.txt
+      # 러너 기본 setuptools의 PYSEC-2026-3447 대응 (앱 의존성 아님, 환경 도구)
+      - run: pip install --upgrade "setuptools>=83.0.0"
       - run: pip-audit --ignore-vuln CVE-2026-3219  # pip 26.0.1 자체 CVE, 수정 버전 미출시
 
   audit-frontend:
